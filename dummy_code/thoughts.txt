@@ -1,4 +1,4 @@
-1. make matrix for individual enemy [row , columnwise manupulation]
+1. make matrix for individual enemy [row , columnwise manupulation] [done]
 2. add levels 
 3. add boss level , level 3
 4. 5 types 
@@ -28,3 +28,15 @@ and make sure it doesnt break any of the previous codes
 make sure you dont change anything before proper planning 
 during the plan make critcally analysis on why your code is correct and always think if it can be solves with simpler code and loigic and do minimal change 
 reason why your code will work than make a change
+
+
+now i want to add levels to the game 
+there will be 3 levels 
+player can choose their level from main menu 
+level 1 :
+there will only 3 types of enemy [ basic , tank , rapid]
+for level 2 
+- increase the number of enemy 
+- increase the speed of enemy 
+- will have all 5 types of enemy 
+level 3 : will be a boss fight [ no need to implement this right now , but plan for it]

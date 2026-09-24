@@ -4,6 +4,81 @@ All changes to `main.c` are recorded here in reverse-chronological order.
 
 ---
 
+## [9] — 2026-09-24 · Grid → Matrix Enemy Movement + 5 Enemy Types
+
+**File:** `main.c`  **Author:** AI + User
+
+### Why
+The old `EnemyGrid` system moved all enemies as one rigid block using a single shared `offsetX/offsetY`. This made per-type speed variation, individual movement patterns (zigzag, rapid, tank), and hitbox accuracy impossible. The `Enemy` struct already had `x`, `y`, `speed`, `direction`, `moveTimer` fields — they were just never used.
+
+### Architecture change — EnemyGrid removed, per-enemy positions used
+
+| Before | After |
+|--------|-------|
+| `EnemyGrid { offsetX, offsetY, speed, shootTimer }` shared by all | Deleted entirely |
+| `GetEnemyPosition(row, col, grid)` computed world pos | Deleted — `e->x, e->y` read directly |
+| `Enemy.x/y` unused (grid offset did all movement) | `Enemy.x/y` are the live, absolute world positions |
+| 5 rows | 6 rows (zigzag occupies 2 rows) |
+
+### New constants
+
+| Constant | Old value | New value | Reason |
+|----------|-----------|-----------|--------|
+| `ENEMY_HITBOX` | 40 | 50 | Hitbox now matches visual enemy size (edge case #2) |
+| `ENEMY_SPACING_X` | 50 (`ENEMY_CELL_SIZE`) | 55 | Adds 5 px gap between enemies (edge case #3) |
+| `ENEMY_SPACING_Y` | 50 | 60 | More vertical breathing room |
+| `ENEMY_BOUND_LEFT/RIGHT` | `ENEMY_LEFT_BOUND`/`ENEMY_RIGHT_BOUND` | `10` / `WINDOW_WIDTH - ENEMY_HITBOX - 10` | Per-enemy screen clamping |
+| `ENEMY_DROP_INTERVAL` | — (bounce-triggered) | `8.0f` s | Timed Y-drop (edge case #5) |
+| `ZIGZAG_PERIOD` | — | `2.0f` s | Triangle wave cycle |
+| `ZIGZAG_AMPLITUDE` | — | `15.0f` px | ±15 px vertical oscillation |
+
+### New struct field
+`float baseY` added to `Enemy` — zigzag oscillates around this base; periodic drops update `baseY` so the oscillation stays centred on the descending position.
+
+### New helpers
+- `GetRowEnemyType(int row)` — maps row index 0–5 to `EnemyType`
+
+### Enemy formation layout (top → bottom)
+
+| Row | Type | Speed | Health | Fires? | Movement |
+|-----|------|-------|--------|--------|----------|
+| 0 | TANK | 15 px/s | 3 HP | Yes (slow) | Horizontal bounce |
+| 1 | RAPID | 80 px/s | 1 HP | Yes (fast) | Horizontal bounce |
+| 2 | ZIGZAG | 50 px/s | 1 HP | Yes | Horizontal + triangle wave ±15 px |
+| 3 | ZIGZAG | 50 px/s | 1 HP | Yes | Horizontal + triangle wave ±15 px |
+| 4 | BASIC | 35 px/s | 1 HP | Yes | Horizontal bounce |
+| 5 | DUMMY | 20 px/s | 2 HP | **No** | Horizontal bounce |
+
+### Movement — row-coherent (prevents enemy-enemy collision, edge case #1 & #4)
+Each frame, the update loop per-row:
+1. Reads speed/direction from the first alive enemy in the row.
+2. Finds the leftmost and rightmost alive enemy X.
+3. If the rightmost would exceed `ENEMY_BOUND_RIGHT` → entire row flips to `direction = -1`.
+4. If the leftmost would go below `ENEMY_BOUND_LEFT` → entire row flips to `direction = +1`.
+5. Moves all alive enemies in the row by `speed * direction * dt`.
+
+All enemies in a row share the same speed and direction, so their spacing never changes — no bunching or overlapping.
+
+### Y-drop — timed (edge case #5)
+A global `dropTimer` increments each frame. Every `ENEMY_DROP_INTERVAL` (8 s) all alive enemies descend by `ENEMY_DROP_STEP` (20 px). For zigzag enemies, only `baseY` is updated; the actual `y` is recomputed from `baseY + wave` each frame.
+
+### Shooting — dummy excluded
+The random-pick shooter loop now skips `ENEMY_DEAD` and `ENEMY_DUMMY`. A `do…while` with an `attempts < 100` guard prevents an infinite loop when only dummies are alive.
+
+### Health system (multi-hit)
+- Bullet hit decrements `health`; enemy only dies at `health <= 0`.
+- `hitFlashFrames = 5` triggers a RED tint on the enemy for 5 frames after taking damage.
+- TANK shows a health bar above it once damaged.
+- `goto next_bullet` prevents a single bullet from registering on multiple enemies in one pass.
+
+### Dependencies added
+- `#include <math.h>` — for `fmodf` used in zigzag triangle wave.
+
+### User tweak (same session)
+- `PLAYER_SHOOT_COOLDOWN` changed `0.5f` → `0.1f` (faster player fire rate).
+
+---
+
 ## [8] — 2026-09-24 · Bug fix: Enemy Groups system
 
 **File:** `main.c`  **Author:** AI

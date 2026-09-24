@@ -1,4 +1,5 @@
 #include "raylib.h"
+#include <math.h>
 
 // Window settings
 #define WINDOW_WIDTH 1000
@@ -27,20 +28,24 @@
 #define BULLET_SPEED 1000.0f
 #define BULLET_WIDTH 5
 #define BULLET_HEIGHT 15
-#define PLAYER_SHOOT_COOLDOWN 0.5f
+#define PLAYER_SHOOT_COOLDOWN 0.1f
 
-// Enemy grid layout
-#define ENEMY_ROWS 5
+// Enemy matrix layout
+#define ENEMY_ROWS 6
 #define ENEMY_COLS 11
-#define ENEMY_CELL_SIZE 50
-#define ENEMY_HITBOX 40
-#define ENEMY_GRID_X 90
-#define ENEMY_GRID_Y 100
-#define ENEMY_SPEED 25.0f
-#define ENEMY_RIGHT_BOUND 140
-#define ENEMY_LEFT_BOUND -60
+#define ENEMY_SPACING_X 55        // horizontal spacing (50px enemy + 5px gap)
+#define ENEMY_SPACING_Y 60        // vertical spacing between rows
+#define ENEMY_HITBOX 50           // hitbox matches visual size
+#define ENEMY_START_X 90          // left edge of formation
+#define ENEMY_START_Y 100         // top edge of formation
+#define ENEMY_BOUND_LEFT 10
+#define ENEMY_BOUND_RIGHT (WINDOW_WIDTH - ENEMY_HITBOX - 10)
 #define ENEMY_DROP_STEP 20.0f
+#define ENEMY_DROP_INTERVAL 8.0f  // seconds between Y-drops
 
+// Zigzag settings
+#define ZIGZAG_PERIOD 2.0f        // seconds for one full triangle wave cycle
+#define ZIGZAG_AMPLITUDE 15.0f    // vertical oscillation in pixels (peak to center)
 
 // Enemy bullet settings
 #define MAX_ENEMY_BULLETS 10
@@ -89,6 +94,7 @@ typedef struct Bullet
     float speed;
     bool active;
 } Bullet;
+
 typedef enum EnemyType{
     ENEMY_DEAD = 0,
     ENEMY_DUMMY,
@@ -97,20 +103,21 @@ typedef enum EnemyType{
     ENEMY_TANK,
     ENEMY_RAPID,
 }EnemyType;
+
 typedef struct Enemy
 {
     EnemyType type;
-    float x, y;          // World position
+    float x, y;          // World position (absolute)
+    float baseY;         // Base Y position — zigzag oscillates around this, drops modify this
     float speed;         // Movement speed
     float direction;     // +1.0 = moving right, -1.0 = moving left
-    float moveTimer;     // Elapsed time — used for sine wave, etc.
+    float moveTimer;     // Elapsed time — used for triangle wave (zigzag)
     float shootTimer;    // Time until next shot
-    float shootCooldown; // How often this enemy fires (randomized at spawn)
+    float shootCooldown; // How often this enemy fires
     int health;
     int maxHealth;
-    int hitFlashFrames; // >0 means draw with RED tint
+    int hitFlashFrames;  // >0 means draw with RED tint
     bool active;
-
 } Enemy;
 
 typedef enum GameState
@@ -127,13 +134,6 @@ typedef struct Explosion
     bool active;
 } Explosion;
 
-typedef struct EnemyGrid
-{
-    float offsetX;
-    float offsetY;
-    float speed;
-    float shootTimer;
-} EnemyGrid;
 
 //  Score per enemy type
 
@@ -156,66 +156,71 @@ static int GetEnemyScore(int type)
     }
 }
 
-// Position of an enemy[row][col]
-
-static Vector2 GetEnemyPosition(int row, int col, EnemyGrid grid)
-{
-    return (Vector2){
-        ENEMY_GRID_X + col * ENEMY_CELL_SIZE + grid.offsetX,
-        ENEMY_GRID_Y + row * ENEMY_CELL_SIZE + grid.offsetY};
-}
-
-
-
-// Reset single enemy into a fresh state
-static void InitEnemy(Enemy *e, int row, int col, int type, EnemyGrid grid)
+// Reset single enemy into a fresh state — positions computed from row/col
+static void InitEnemy(Enemy *e, int row, int col, int type)
 {
     e->type = type;
-    Vector2 pos = GetEnemyPosition(row, col, grid);
-    e->x = pos.x;
-    e->y = pos.y;
-    e->direction = GetRandomValue(0, 1) ? 1.0f : -1.0f;
+    e->x = ENEMY_START_X + col * ENEMY_SPACING_X;
+    e->y = ENEMY_START_Y + row * ENEMY_SPACING_Y;
+    e->baseY = e->y;
+    e->direction = 1.0f;   // all start moving right (row-coherent)
     e->moveTimer = 0;
-    e->shootTimer = 0;
-   
+    e->shootTimer = (float)GetRandomValue(0, 200) / 100.0f; // stagger initial shots
     e->hitFlashFrames = 0;
     e->active = true;
     switch(type){
         case ENEMY_DUMMY:
-            e->speed=20;
-            e->health=1;
-            e->shootCooldown=2;
-            e->maxHealth=e->health;
+            e->speed = 20;
+            e->health = 2;           // spec: health 2
+            e->shootCooldown = 999.0f; // dummy doesn't fire
+            e->maxHealth = e->health;
             break;
         case ENEMY_BASIC:
-            e->speed=35;
-            e->health=1;
-            e->shootCooldown=1.5f;
-            e->maxHealth=e->health;
+            e->speed = 35;
+            e->health = 1;
+            e->shootCooldown = 1.5f;
+            e->maxHealth = e->health;
             break;
         case ENEMY_ZIGZAG:
-            e->speed=50;
-            e->health=2;
-            e->shootCooldown=1;
-            e->maxHealth=e->health;
+            e->speed = 50;
+            e->health = 1;           // spec: health 1
+            e->shootCooldown = 1.0f;
+            e->maxHealth = e->health;
             break;
         case ENEMY_TANK:
-            e->speed=10;
-            e->health=3;
-            e->shootCooldown=3;
-            e->maxHealth=e->health;
+            e->speed = 15;
+            e->health = 3;           // spec: health 3
+            e->shootCooldown = 3.0f;
+            e->maxHealth = e->health;
             break;
         case ENEMY_RAPID:
-            e->speed=100;
-            e->health=1;
-            e->shootCooldown=0.5f;
-            e->maxHealth=e->health;
+            e->speed = 80;
+            e->health = 1;
+            e->shootCooldown = 0.5f;
+            e->maxHealth = e->health;
             break;
         case ENEMY_DEAD:
-            e->speed=0;
+            e->speed = 0;
+            e->active = false;
             break;
     }
 }
+
+// Get the enemy type for a given row in the formation layout
+static EnemyType GetRowEnemyType(int row)
+{
+    switch (row)
+    {
+        case 0: return ENEMY_TANK;    // top row: slow, 3 HP
+        case 1: return ENEMY_RAPID;   // fast movers
+        case 2: return ENEMY_ZIGZAG;  // zigzag row 1 of 2
+        case 3: return ENEMY_ZIGZAG;  // zigzag row 2 of 2
+        case 4: return ENEMY_BASIC;   // standard enemies
+        case 5: return ENEMY_DUMMY;   // front row: shield, no fire, 2 HP
+        default: return ENEMY_BASIC;
+    }
+}
+
 
 //  Main
 
@@ -276,28 +281,22 @@ int main(void)
     Bullet playerBullets[MAX_PLAYER_BULLETS] = {0};
     float shootCooldown = 0.0f;
 
-    // Enemy grid state
+    // Enemy matrix — each enemy has its own absolute position
     Enemy enemies[ENEMY_ROWS][ENEMY_COLS];
-    EnemyGrid grid = {
-        .offsetX = 0,
-        .offsetY = 0,
-        .speed = ENEMY_SPEED,
-        .shootTimer = 0,
-    };
-    int enemyCount = ENEMY_ROWS * ENEMY_COLS; // track alive enemies
+    int enemyCount = ENEMY_ROWS * ENEMY_COLS;
 
     for (int i = 0; i < ENEMY_ROWS; i++)
     {
+        EnemyType rowType = GetRowEnemyType(i);
         for (int j = 0; j < ENEMY_COLS; j++)
         {
-            if (i >= 3)
-                enemies[i][j].type = ENEMY_DUMMY;
-            else if (i >= 1)
-                enemies[i][j].type = ENEMY_ZIGZAG;
-            else
-                enemies[i][j].type = ENEMY_TANK;
+            InitEnemy(&enemies[i][j], i, j, rowType);
         }
     }
+
+    // Global timers (replaced EnemyGrid)
+    float enemyShootTimer = 0.0f;
+    float dropTimer = 0.0f;
 
     // Enemy bullets pool
     Bullet enemyBullets[MAX_ENEMY_BULLETS] = {0};
@@ -377,33 +376,133 @@ int main(void)
                 }
             }
 
-            // Enemy randomly shoots a bullet
-            grid.shootTimer += dt;
-
-            if (grid.shootTimer >= ENEMY_SHOOT_COOLDOWN)
+            // --- Per-row enemy movement (row-coherent) ---
+            for (int row = 0; row < ENEMY_ROWS; row++)
             {
-                int randCol;
-                int randRow;
+                // Find the speed and direction for this row from any alive enemy
+                float rowSpeed = 0;
+                float rowDir = 0;
+                bool hasAlive = false;
+
+                for (int col = 0; col < ENEMY_COLS; col++)
+                {
+                    if (enemies[row][col].type != ENEMY_DEAD)
+                    {
+                        rowSpeed = enemies[row][col].speed;
+                        rowDir = enemies[row][col].direction;
+                        hasAlive = true;
+                        break;
+                    }
+                }
+
+                if (!hasAlive) continue;
+
+                // Find leftmost and rightmost alive enemy X positions in this row
+                float leftmostX = (float)WINDOW_WIDTH;
+                float rightmostX = 0.0f;
+                for (int col = 0; col < ENEMY_COLS; col++)
+                {
+                    if (enemies[row][col].type != ENEMY_DEAD)
+                    {
+                        if (enemies[row][col].x < leftmostX) leftmostX = enemies[row][col].x;
+                        if (enemies[row][col].x > rightmostX) rightmostX = enemies[row][col].x;
+                    }
+                }
+
+                // Check if row needs to reverse direction at screen boundaries
+                float nextRight = rightmostX + rowSpeed * rowDir * dt;
+                float nextLeft = leftmostX + rowSpeed * rowDir * dt;
+
+                if (nextRight > ENEMY_BOUND_RIGHT && rowDir > 0)
+                {
+                    rowDir = -1.0f;
+                }
+                else if (nextLeft < ENEMY_BOUND_LEFT && rowDir < 0)
+                {
+                    rowDir = 1.0f;
+                }
+
+                // Move all alive enemies in this row
+                for (int col = 0; col < ENEMY_COLS; col++)
+                {
+                    if (enemies[row][col].type != ENEMY_DEAD)
+                    {
+                        enemies[row][col].direction = rowDir;
+                        enemies[row][col].x += rowSpeed * rowDir * dt;
+                        enemies[row][col].moveTimer += dt;
+
+                        // Decrement hit flash
+                        if (enemies[row][col].hitFlashFrames > 0)
+                            enemies[row][col].hitFlashFrames--;
+
+                        // Zigzag: apply triangle wave Y offset relative to baseY
+                        if (enemies[row][col].type == ENEMY_ZIGZAG)
+                        {
+                            float t = fmodf(enemies[row][col].moveTimer, ZIGZAG_PERIOD) / ZIGZAG_PERIOD;
+                            float wave = (t < 0.5f) ? (t * 2.0f) : (2.0f - t * 2.0f); // 0→1→0 triangle
+                            float yOffset = (wave - 0.5f) * (ZIGZAG_AMPLITUDE * 2.0f); // ±ZIGZAG_AMPLITUDE
+                            enemies[row][col].y = enemies[row][col].baseY + yOffset;
+                        }
+                    }
+                }
+            }
+
+            // --- Timed Y-drop: all enemies descend periodically ---
+            dropTimer += dt;
+            if (dropTimer >= ENEMY_DROP_INTERVAL)
+            {
+                for (int i = 0; i < ENEMY_ROWS; i++)
+                {
+                    for (int j = 0; j < ENEMY_COLS; j++)
+                    {
+                        if (enemies[i][j].type != ENEMY_DEAD)
+                        {
+                            enemies[i][j].baseY += ENEMY_DROP_STEP;
+                            // Non-zigzag: update y directly (zigzag recalculates y each frame)
+                            if (enemies[i][j].type != ENEMY_ZIGZAG)
+                            {
+                                enemies[i][j].y += ENEMY_DROP_STEP;
+                            }
+                        }
+                    }
+                }
+                dropTimer = 0.0f;
+            }
+
+            // --- Enemy shooting (global timer, random pick, dummy excluded) ---
+            enemyShootTimer += dt;
+
+            if (enemyShootTimer >= ENEMY_SHOOT_COOLDOWN && enemyCount > 0)
+            {
+                // Try to find a non-dead, non-dummy enemy to shoot
+                int attempts = 0;
+                int randRow, randCol;
                 do
                 {
                     randCol = GetRandomValue(0, ENEMY_COLS - 1);
                     randRow = GetRandomValue(0, ENEMY_ROWS - 1);
+                    attempts++;
+                } while ((enemies[randRow][randCol].type == ENEMY_DEAD ||
+                          enemies[randRow][randCol].type == ENEMY_DUMMY) &&
+                         attempts < 100);
 
-                } while (enemies[randRow][randCol].type == ENEMY_DEAD);
-
-                for (int i = 0; i < MAX_ENEMY_BULLETS; i++)
+                // Only fire if we found a valid shooter (not dead, not dummy)
+                if (enemies[randRow][randCol].type != ENEMY_DEAD &&
+                    enemies[randRow][randCol].type != ENEMY_DUMMY)
                 {
-                    if (!enemyBullets[i].active)
+                    for (int i = 0; i < MAX_ENEMY_BULLETS; i++)
                     {
-                        Vector2 pos = GetEnemyPosition(randRow, randCol, grid);
-                        enemyBullets[i].position.x = pos.x + 20;
-                        enemyBullets[i].position.y = pos.y + 40;
-                        enemyBullets[i].speed = ENEMY_BULLET_SPEED;
-                        enemyBullets[i].active = true;
-                        break;
+                        if (!enemyBullets[i].active)
+                        {
+                            enemyBullets[i].position.x = enemies[randRow][randCol].x + ENEMY_HITBOX / 2;
+                            enemyBullets[i].position.y = enemies[randRow][randCol].y + ENEMY_HITBOX;
+                            enemyBullets[i].speed = ENEMY_BULLET_SPEED;
+                            enemyBullets[i].active = true;
+                            break;
+                        }
                     }
                 }
-                grid.shootTimer = 0.0f;
+                enemyShootTimer = 0.0f;
             }
 
             // Move all enemy bullets downward
@@ -417,7 +516,7 @@ int main(void)
                 }
             }
 
-            // Check if player bullets hit any enemies
+            // Check if player bullets hit any enemies (with health system)
             for (int i = 0; i < MAX_PLAYER_BULLETS; i++)
             {
                 if (!playerBullets[i].active)
@@ -429,23 +528,31 @@ int main(void)
                     {
                         if (enemies[j][k].type != ENEMY_DEAD)
                         {
-                            Vector2 pos = GetEnemyPosition(j, k, grid);
-                            Rectangle enemyRect = {pos.x, pos.y, ENEMY_HITBOX, ENEMY_HITBOX};
+                            Rectangle enemyRect = {enemies[j][k].x, enemies[j][k].y, ENEMY_HITBOX, ENEMY_HITBOX};
 
                             if (CheckCollisionPointRec(playerBullets[i].position, enemyRect))
                             {
-                                score += GetEnemyScore(enemies[j][k].type);
-                                enemies[j][k].type = ENEMY_DEAD;
                                 playerBullets[i].active = false;
-                                enemyCount--;
+                                enemies[j][k].health--;
+                                enemies[j][k].hitFlashFrames = 5; // brief red flash
 
-                                explosion.position = pos;
-                                explosion.active = true;
-                                explosion.timer = 0;
+                                if (enemies[j][k].health <= 0)
+                                {
+                                    score += GetEnemyScore(enemies[j][k].type);
+                                    enemies[j][k].type = ENEMY_DEAD;
+                                    enemies[j][k].active = false;
+                                    enemyCount--;
+
+                                    explosion.position = (Vector2){enemies[j][k].x, enemies[j][k].y};
+                                    explosion.active = true;
+                                    explosion.timer = 0;
+                                }
+                                goto next_bullet; // bullet consumed, check next
                             }
                         }
                     }
                 }
+                next_bullet:;
             }
 
             // Check if enemy bullets hit the player
@@ -468,22 +575,6 @@ int main(void)
                 }
             }
 
-            // Move the enemy grid side to side, drop on bounce
-            grid.offsetX += grid.speed * dt;
-
-            if (grid.offsetX > ENEMY_RIGHT_BOUND)
-            {
-                grid.offsetX = ENEMY_RIGHT_BOUND;
-                grid.speed = -ENEMY_SPEED;
-                grid.offsetY += ENEMY_DROP_STEP;
-            }
-            else if (grid.offsetX < ENEMY_LEFT_BOUND)
-            {
-                grid.offsetX = ENEMY_LEFT_BOUND;
-                grid.speed = ENEMY_SPEED;
-                grid.offsetY += ENEMY_DROP_STEP;
-            }
-
             // Update explosion timer
             if (explosion.active)
             {
@@ -498,30 +589,25 @@ int main(void)
             if (player.lives <= 0)
                 state = GAME_LOST;
         }
-//RESTART GAME
+
+        // RESTART GAME
         if (state == GAME_WON || state == GAME_LOST)
         {
-        
             if (IsKeyPressed(KEY_ENTER))
             {
                 player.lives = PLAYER_LIVES;
+                player.position.x = PLAYER_START_X;
                 score = 0;
                 enemyCount = ENEMY_ROWS * ENEMY_COLS;
-                grid.offsetX = 0;
-                grid.offsetY = 0;
-                grid.speed = ENEMY_SPEED;
-                grid.shootTimer = 0;
+                enemyShootTimer = 0.0f;
+                dropTimer = 0.0f;
 
                 for (int i = 0; i < ENEMY_ROWS; i++)
                 {
+                    EnemyType rowType = GetRowEnemyType(i);
                     for (int j = 0; j < ENEMY_COLS; j++)
                     {
-                        if (i >= 3)
-                            enemies[i][j].type = ENEMY_DUMMY;
-                        else if (i >= 1)
-                            enemies[i][j].type = ENEMY_ZIGZAG;
-                        else
-                            enemies[i][j].type = ENEMY_TANK;
+                        InitEnemy(&enemies[i][j], i, j, rowType);
                     }
                 }
 
@@ -568,24 +654,37 @@ int main(void)
                 if (enemies[i][j].type == ENEMY_DEAD)
                     continue;
 
-                Vector2 pos = GetEnemyPosition(i, j, grid);
+                Vector2 pos = {enemies[i][j].x, enemies[i][j].y};
+                Color tint = WHITE;
+
+                // Hit flash override: RED tint for a few frames after taking damage
+                bool flashing = (enemies[i][j].hitFlashFrames > 0);
 
                 switch (enemies[i][j].type)
                 {
                 case ENEMY_DUMMY:
-                    DrawTextureEx(dummy, pos, 0, .37f, WHITE);
+                    DrawTextureEx(dummy, pos, 0, .37f, flashing ? RED : WHITE);
                     break;
                 case ENEMY_BASIC:
-                    DrawTextureEx(basicTex, (Vector2){pos.x, pos.y}, 0, .37f, SKYBLUE);
+                    DrawTextureEx(basicTex, (Vector2){pos.x, pos.y}, 0, .37f, flashing ? RED : SKYBLUE);
                     break;
                 case ENEMY_ZIGZAG:
-                    DrawTextureEx(zigzag, (Vector2){pos.x - 5, pos.y}, 0, 0.35f, WHITE);
+                    DrawTextureEx(zigzag, (Vector2){pos.x - 5, pos.y}, 0, 0.35f, flashing ? RED : WHITE);
                     break;
                 case ENEMY_TANK:
-                    DrawTextureEx(tank, (Vector2){pos.x - 12, pos.y}, 0, 0.4f, WHITE);
+                    DrawTextureEx(tank, (Vector2){pos.x - 12, pos.y}, 0, 0.4f, flashing ? RED : WHITE);
+                    // Draw health bar above tank
+                    if (enemies[i][j].health < enemies[i][j].maxHealth)
+                    {
+                        float barWidth = 40.0f;
+                        float barHeight = 4.0f;
+                        float healthRatio = (float)enemies[i][j].health / (float)enemies[i][j].maxHealth;
+                        DrawRectangle((int)pos.x + 5, (int)pos.y - 8, (int)barWidth, (int)barHeight, DARKGRAY);
+                        DrawRectangle((int)pos.x + 5, (int)pos.y - 8, (int)(barWidth * healthRatio), (int)barHeight, RED);
+                    }
                     break;
                 case ENEMY_RAPID:
-                    DrawTextureEx(rapidTex, (Vector2){pos.x - 5, pos.y}, 0, 0.35f, YELLOW);
+                    DrawTextureEx(rapidTex, (Vector2){pos.x - 5, pos.y}, 0, 0.35f, flashing ? RED : YELLOW);
                     break;
                 }
             }
