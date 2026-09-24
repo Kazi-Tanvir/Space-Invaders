@@ -1,7 +1,7 @@
 1. make matrix for individual enemy [row , columnwise manupulation] [done]
-2. add levels 
-3. add boss level , level 3
-4. 5 types 
+2. add levels [done]
+3. add boss level , level 3 [done]
+4. 5 types [done]
 
 
 
@@ -57,3 +57,24 @@ there will be health bar at the top of screen [ total hits 50]
 1. this level should end with the death of the boss 
 2. the random enemies should appear from the enemy not random position 
 3. boss should have both x and y axis [ not too much in y] movement 
+
+
+
+now i want to add the following features 
+1. pause the game [done]
+2. resume game [even after forced close] [ data should be saved in log file ] [done]
+3. leaderboard [store top 5 high score name will be by default tamim but if sombody makes it to top 5 he will get a option to enter his name afte winning the game] [done]
+4. make simple txt file to store [username , score , level ] [done]
+5. there will be main menu [ new game-> level selection , resume game , leaderboard , exit ] [done]
+6. in game there will be pause menu [ resume game , level selection , leaderboard , exit ] [done]
+7. navigate with arrows in menu + mouse control + keyboard buttons [done]
+8. add a loading screen while opening the game [ there will be bg and there will be loading bar 2-3s ] [done]
+
+
+here are few bugs 
+1. there is no level selection menu after i click for new game 
+2. there is no pause mneu [and no option for pause to ] [ you should press p to pause in game]
+3. also force quitting doesnt saves the game 
+4. there no way you can resume a game [there are no file to game data for pausing and resuming in game ]
+5. you cannot enter name after making a high score 
+6. in menu enter and few other navigation arent working properly 

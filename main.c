@@ -1,5 +1,7 @@
 #include "raylib.h"
 #include <math.h>
+#include <stdio.h>
+#include <string.h>
 
 // Window settings
 #define WINDOW_WIDTH 1000
@@ -144,11 +146,16 @@ typedef struct Enemy
 
 typedef enum GameState
 {
-    MAIN_MENU,    // level selection screen
+    LOADING,       // startup loading bar (2.5 s)
+    MAIN_MENU,     // New Game / Resume / Leaderboard / Exit
+    LEVEL_SELECT,  // pick level 1 / 2 / 3
     PLAYING,
+    PAUSED,        // in-game pause menu
     GAME_WON,
     GAME_LOST,
-    BOSS_FIGHT,   // level 3 placeholder
+    BOSS_FIGHT,
+    LEADERBOARD,   // view top-5 scores
+    NAME_ENTRY,    // type name after new high score
 } GameState;
 
 typedef struct Explosion
@@ -183,6 +190,32 @@ typedef struct Boss
     bool minionsSpawned2;   // true after wave 2 (RAPID) spawned
     bool active;
 } Boss;
+
+// Loading screen
+#define LOAD_DURATION 2.5f
+
+// Menu system (supports up to 5 items)
+#define MAX_MENU_ITEMS 5
+
+typedef struct Menu
+{
+    const char *title;
+    const char *items[MAX_MENU_ITEMS];
+    int  count;
+    int  selected;
+    bool enabled[MAX_MENU_ITEMS];  // false = grayed-out, skipped by keyboard
+} Menu;
+
+// Leaderboard
+#define MAX_LEADERBOARD 5
+#define MAX_NAME_LEN    16
+
+typedef struct LeaderEntry
+{
+    char name[MAX_NAME_LEN];
+    int  score;
+    int  level;
+} LeaderEntry;
 
 typedef struct LevelConfig
 {
@@ -339,6 +372,290 @@ static void ResetBoss(Boss *b)
     b->active = true;
 }
 
+// --- Leaderboard helpers ---
+
+static void LoadLeaderboard(const char *path, LeaderEntry lb[], int *count)
+{
+    *count = 0;
+    FILE *f = fopen(path, "r");
+    if (!f)
+    {
+        // First run: seed with 5 default 'tamim' entries
+        int defScores[MAX_LEADERBOARD] = {500, 400, 300, 200, 100};
+        int defLevels[MAX_LEADERBOARD] = {3, 2, 2, 1, 1};
+        for (int i = 0; i < MAX_LEADERBOARD; i++)
+        {
+            strncpy(lb[i].name, "tamim", MAX_NAME_LEN - 1);
+            lb[i].name[MAX_NAME_LEN - 1] = '\0';
+            lb[i].score = defScores[i];
+            lb[i].level = defLevels[i];
+        }
+        *count = MAX_LEADERBOARD;
+        return;
+    }
+    while (*count < MAX_LEADERBOARD)
+    {
+        if (fscanf(f, "%15s %d %d",
+                   lb[*count].name, &lb[*count].score, &lb[*count].level) != 3)
+            break;
+        (*count)++;
+    }
+    fclose(f);
+}
+
+static void SaveLeaderboard(const char *path, const LeaderEntry lb[], int count)
+{
+    FILE *f = fopen(path, "w");
+    if (!f) return;
+    for (int i = 0; i < count; i++)
+        fprintf(f, "%s %d %d\n", lb[i].name, lb[i].score, lb[i].level);
+    fclose(f);
+}
+
+static bool IsHighScore(const LeaderEntry lb[], int count, int score)
+{
+    if (count < MAX_LEADERBOARD) return true;
+    return score > lb[count - 1].score;
+}
+
+static void InsertScore(LeaderEntry lb[], int *count,
+                        const char *name, int score, int level)
+{
+    int pos = *count;
+    for (int i = 0; i < *count; i++)
+        if (score > lb[i].score) { pos = i; break; }
+    int newCount = (*count < MAX_LEADERBOARD) ? *count + 1 : MAX_LEADERBOARD;
+    for (int i = newCount - 1; i > pos; i--)
+        lb[i] = lb[i - 1];
+    strncpy(lb[pos].name, name, MAX_NAME_LEN - 1);
+    lb[pos].name[MAX_NAME_LEN - 1] = '\0';
+    lb[pos].score = score;
+    lb[pos].level = level;
+    *count = newCount;
+}
+
+// --- Menu helpers (arrow up/down, mouse hover, ENTER/click confirm) ---
+
+static int UpdateMenu(Menu *menu)
+{
+    if (IsKeyPressed(KEY_UP))
+    {
+        int prev = menu->selected;
+        do { menu->selected = (menu->selected - 1 + menu->count) % menu->count; }
+        while (!menu->enabled[menu->selected] && menu->selected != prev);
+    }
+    if (IsKeyPressed(KEY_DOWN))
+    {
+        int prev = menu->selected;
+        do { menu->selected = (menu->selected + 1) % menu->count; }
+        while (!menu->enabled[menu->selected] && menu->selected != prev);
+    }
+    // Mouse hover — only update highlight if the mouse has actually moved
+    // (prevents stationary cursor from overriding keyboard selection every frame)
+    static Vector2 lastMouse = {-9999.0f, -9999.0f};
+    Vector2 mouse = GetMousePosition();
+    if (mouse.x != lastMouse.x || mouse.y != lastMouse.y)
+    {
+        lastMouse = mouse;
+        for (int i = 0; i < menu->count; i++)
+        {
+            Rectangle r = {(float)(WINDOW_WIDTH / 2 - 200),
+                            (float)(320 + i * 55 - 5), 400.0f, 44.0f};
+            if (CheckCollisionPointRec(mouse, r) && menu->enabled[i])
+                menu->selected = i;
+        }
+    }
+    // Keyboard confirm
+    if (IsKeyPressed(KEY_ENTER) && menu->enabled[menu->selected])
+        return menu->selected;
+    // Mouse click confirm — only when cursor is over the highlighted item
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+    {
+        Rectangle selR = {(float)(WINDOW_WIDTH / 2 - 200),
+                          (float)(320 + menu->selected * 55 - 5), 400.0f, 44.0f};
+        if (CheckCollisionPointRec(mouse, selR) && menu->enabled[menu->selected])
+            return menu->selected;
+    }
+    return -1;
+}
+
+static void DrawMenu(const Menu *menu)
+{
+    DrawRectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, (Color){0, 0, 0, 215});
+    int titleW = MeasureText(menu->title, 46);
+    DrawText(menu->title, WINDOW_WIDTH / 2 - titleW / 2, 190, 46, WHITE);
+    for (int i = 0; i < menu->count; i++)
+    {
+        int y = 320 + i * 55;
+        Color c = !menu->enabled[i]
+                    ? DARKGRAY
+                    : (i == menu->selected ? YELLOW : WHITE);
+        if (i == menu->selected && menu->enabled[i])
+            DrawRectangle(WINDOW_WIDTH / 2 - 200, y - 5, 400, 44,
+                          (Color){255, 255, 255, 25});
+        int tw = MeasureText(menu->items[i], 28);
+        DrawText(menu->items[i], WINDOW_WIDTH / 2 - tw / 2, y, 28, c);
+    }
+}
+
+// --- Save / Load full game state ---
+
+static void SaveGame(const char *path, int stateVal, int level, int score,
+                     const Player *player, float shootCd,
+                     const Enemy enemies[][ENEMY_COLS], int numRows, int enemyCount,
+                     float enemyShootTimer, float dropTimer,
+                     const Bullet pBullets[], const Bullet eBullets[],
+                     const Boss *boss, const BossBullet bBullets[])
+{
+    FILE *f = fopen(path, "w");
+    if (!f) return;
+    fprintf(f, "SAVEGAME v1\n");
+    fprintf(f, "state %d\n",      stateVal);
+    fprintf(f, "level %d\n",      level);
+    fprintf(f, "score %d\n",      score);
+    fprintf(f, "px %.3f\n",       player->position.x);
+    fprintf(f, "plives %d\n",     player->lives);
+    fprintf(f, "pcd %.5f\n",      shootCd);
+    fprintf(f, "numRows %d\n",    numRows);
+    fprintf(f, "eCount %d\n",     enemyCount);
+    fprintf(f, "est %.5f\n",      enemyShootTimer);
+    fprintf(f, "dt %.5f\n",       dropTimer);
+    for (int i = 0; i < MAX_ENEMY_ROWS; i++)
+        for (int j = 0; j < ENEMY_COLS; j++)
+            fprintf(f, "E %d %d %d %.3f %.3f %.3f %.3f %.3f %.5f %.5f %.5f %d %d %d %d\n",
+                    i, j, (int)enemies[i][j].type,
+                    enemies[i][j].x, enemies[i][j].y, enemies[i][j].baseY,
+                    enemies[i][j].speed, enemies[i][j].direction,
+                    enemies[i][j].moveTimer, enemies[i][j].shootTimer,
+                    enemies[i][j].shootCooldown, enemies[i][j].health,
+                    enemies[i][j].maxHealth, enemies[i][j].hitFlashFrames,
+                    enemies[i][j].active ? 1 : 0);
+    for (int i = 0; i < MAX_PLAYER_BULLETS; i++)
+        fprintf(f, "PB %d %d %.3f %.3f %.3f\n",
+                i, pBullets[i].active ? 1 : 0,
+                pBullets[i].position.x, pBullets[i].position.y, pBullets[i].speed);
+    for (int i = 0; i < MAX_ENEMY_BULLETS; i++)
+        fprintf(f, "EB %d %d %.3f %.3f %.3f\n",
+                i, eBullets[i].active ? 1 : 0,
+                eBullets[i].position.x, eBullets[i].position.y, eBullets[i].speed);
+    fprintf(f, "BA %d\n",   boss->active ? 1 : 0);
+    fprintf(f, "BH %d\n",   boss->health);
+    fprintf(f, "BX %.3f\n", boss->x);
+    fprintf(f, "BY %.3f\n", boss->y);
+    fprintf(f, "BD %.5f\n", boss->direction);
+    fprintf(f, "BYT %.5f\n", boss->yTimer);
+    fprintf(f, "BPT %.5f\n", boss->phaseTimer);
+    fprintf(f, "BST %.5f\n", boss->shootTimer);
+    fprintf(f, "BP %d\n",   boss->attackPhase);
+    fprintf(f, "BM1 %d\n",  boss->minionsSpawned1 ? 1 : 0);
+    fprintf(f, "BM2 %d\n",  boss->minionsSpawned2 ? 1 : 0);
+    for (int i = 0; i < MAX_BOSS_BULLETS; i++)
+        fprintf(f, "BB %d %d %.3f %.3f %.3f %.3f\n",
+                i, bBullets[i].active ? 1 : 0,
+                bBullets[i].x, bBullets[i].y, bBullets[i].vx, bBullets[i].vy);
+    fprintf(f, "END\n");
+    fclose(f);
+}
+
+static bool LoadGame(const char *path, int *stateVal, int *level, int *score,
+                     Player *player, float *shootCd,
+                     Enemy enemies[][ENEMY_COLS], int *numRows, int *enemyCount,
+                     float *enemyShootTimer, float *dropTimer,
+                     Bullet pBullets[], Bullet eBullets[],
+                     Boss *boss, BossBullet bBullets[])
+{
+    FILE *f = fopen(path, "r");
+    if (!f) return false;
+    char hdr[16], ver[8];
+    if (fscanf(f, "%15s %7s", hdr, ver) != 2 || strcmp(hdr, "SAVEGAME") != 0)
+        { fclose(f); return false; }
+
+    // Clear arrays before loading
+    for (int i = 0; i < MAX_ENEMY_ROWS; i++)
+        for (int j = 0; j < ENEMY_COLS; j++) enemies[i][j].type = ENEMY_DEAD;
+    for (int i = 0; i < MAX_PLAYER_BULLETS; i++) pBullets[i].active = false;
+    for (int i = 0; i < MAX_ENEMY_BULLETS;  i++) eBullets[i].active = false;
+    for (int i = 0; i < MAX_BOSS_BULLETS;   i++) bBullets[i].active = false;
+
+    char k[8];
+    fscanf(f, "%7s %d", k, stateVal);
+    fscanf(f, "%7s %d", k, level);
+    fscanf(f, "%7s %d", k, score);
+    fscanf(f, "%7s %f", k, &player->position.x);
+    fscanf(f, "%7s %d", k, &player->lives);
+    fscanf(f, "%7s %f", k, shootCd);
+    fscanf(f, "%7s %d", k, numRows);
+    fscanf(f, "%7s %d", k, enemyCount);
+    fscanf(f, "%7s %f", k, enemyShootTimer);
+    fscanf(f, "%7s %f", k, dropTimer);
+
+    for (int i = 0; i < MAX_ENEMY_ROWS; i++)
+    {
+        for (int j = 0; j < ENEMY_COLS; j++)
+        {
+            int ri, rj, type, health, maxH, hflash, act;
+            float x, y, bY, spd, dir, mt, st, sc;
+            fscanf(f, "%7s %d %d %d %f %f %f %f %f %f %f %f %d %d %d %d",
+                   k, &ri, &rj, &type, &x, &y, &bY, &spd, &dir, &mt, &st, &sc,
+                   &health, &maxH, &hflash, &act);
+            enemies[i][j].type           = (EnemyType)type;
+            enemies[i][j].x              = x;      enemies[i][j].y            = y;
+            enemies[i][j].baseY          = bY;     enemies[i][j].speed        = spd;
+            enemies[i][j].direction      = dir;    enemies[i][j].moveTimer    = mt;
+            enemies[i][j].shootTimer     = st;     enemies[i][j].shootCooldown= sc;
+            enemies[i][j].health         = health; enemies[i][j].maxHealth    = maxH;
+            enemies[i][j].hitFlashFrames = hflash;
+            enemies[i][j].active         = act ? true : false;
+        }
+    }
+    for (int i = 0; i < MAX_PLAYER_BULLETS; i++)
+    {
+        int idx, act; float x, y, spd;
+        fscanf(f, "%7s %d %d %f %f %f", k, &idx, &act, &x, &y, &spd);
+        pBullets[i].active = act ? true : false;
+        pBullets[i].position.x = x; pBullets[i].position.y = y; pBullets[i].speed = spd;
+    }
+    for (int i = 0; i < MAX_ENEMY_BULLETS; i++)
+    {
+        int idx, act; float x, y, spd;
+        fscanf(f, "%7s %d %d %f %f %f", k, &idx, &act, &x, &y, &spd);
+        eBullets[i].active = act ? true : false;
+        eBullets[i].position.x = x; eBullets[i].position.y = y; eBullets[i].speed = spd;
+    }
+    int bAct, bH, bPh, bM1, bM2;
+    float bX, bY2, bD, bYT, bPT, bST;
+    fscanf(f, "%7s %d", k, &bAct);
+    fscanf(f, "%7s %d", k, &bH);
+    fscanf(f, "%7s %f", k, &bX);
+    fscanf(f, "%7s %f", k, &bY2);
+    fscanf(f, "%7s %f", k, &bD);
+    fscanf(f, "%7s %f", k, &bYT);
+    fscanf(f, "%7s %f", k, &bPT);
+    fscanf(f, "%7s %f", k, &bST);
+    fscanf(f, "%7s %d", k, &bPh);
+    fscanf(f, "%7s %d", k, &bM1);
+    fscanf(f, "%7s %d", k, &bM2);
+    boss->active          = bAct ? true : false;
+    boss->health          = bH;         boss->maxHealth   = BOSS_MAX_HEALTH;
+    boss->x               = bX;         boss->y           = bY2;
+    boss->direction       = bD;         boss->speed       = BOSS_SPEED;
+    boss->yTimer          = bYT;        boss->phaseTimer  = bPT;
+    boss->shootTimer      = bST;        boss->attackPhase = bPh;
+    boss->minionsSpawned1 = bM1 ? true : false;
+    boss->minionsSpawned2 = bM2 ? true : false;
+    boss->hitFlashFrames  = 0;
+    for (int i = 0; i < MAX_BOSS_BULLETS; i++)
+    {
+        int idx, act; float x, y, vx, vy;
+        fscanf(f, "%7s %d %d %f %f %f %f", k, &idx, &act, &x, &y, &vx, &vy);
+        bBullets[i].active = act ? true : false;
+        bBullets[i].x = x; bBullets[i].y = y;
+        bBullets[i].vx = vx; bBullets[i].vy = vy;
+    }
+    fclose(f);
+    return true;
+}
+
 
 //  Main
 
@@ -419,9 +736,45 @@ int main(void)
     // Explosion state
     Explosion explosion = {.position = {0, 0}, .timer = 0, .active = false};
 
-    // Score and game state — start on the main menu
+    // Score, game state, and new system variables
     int score = 0;
-    GameState state = MAIN_MENU;
+    GameState state    = LOADING;   // always starts with loading screen
+    float loadTimer    = 0.0f;
+    bool  shouldExit   = false;
+    GameState returnState = MAIN_MENU; // where LEADERBOARD goes back to
+    GameState pausedFrom  = PLAYING;   // PLAYING or BOSS_FIGHT before pause
+    float autoSaveTimer   = 0.0f;      // periodic auto-save every 10 s during gameplay
+    #define AUTOSAVE_INTERVAL 10.0f
+
+    // Leaderboard — load from file (or seed defaults on first run)
+    LeaderEntry leaderboard[MAX_LEADERBOARD];
+    int leaderCount = 0;
+    LoadLeaderboard("leaderboard.txt", leaderboard, &leaderCount);
+
+    // Name entry buffer
+    char nameBuffer[MAX_NAME_LEN] = {0};
+    int  nameLen = 0;
+
+    // Menu definitions
+    Menu mainMenu = {
+        .title    = "SPACE INVADERS",
+        .items    = {"New Game", "Resume Game", "Leaderboard", "Exit", ""},
+        .count    = 4, .selected = 0,
+        .enabled  = {true, false, true, true, false}
+    };
+    Menu levelMenu = {
+        .title    = "SELECT LEVEL",
+        .items    = {"Level 1  -  Easy", "Level 2  -  Hard",
+                     "Level 3  -  Boss", "Back", ""},
+        .count    = 4, .selected = 0,
+        .enabled  = {true, true, true, true, false}
+    };
+    Menu pauseMenu = {
+        .title    = "PAUSED",
+        .items    = {"Resume", "New Game", "Leaderboard", "Exit", ""},
+        .count    = 4, .selected = 0,
+        .enabled  = {true, true, true, true, false}
+    };
 
     // Init enemy array to dead so nothing is drawn before a level is chosen
     for (int i = 0; i < MAX_ENEMY_ROWS; i++)
@@ -435,7 +788,7 @@ int main(void)
     Vector2 origin = {0, 0};
 
     // Game loop
-    while (!WindowShouldClose())
+    while (!WindowShouldClose() && !shouldExit)
     {
         float dt = GetFrameTime();
 
@@ -450,41 +803,158 @@ int main(void)
             }
         }
 
-        // --- Main menu: level selection ---
-        if (state == MAIN_MENU)
+        // --- Loading screen ---
+        if (state == LOADING)
         {
-            if (IsKeyPressed(KEY_ONE))
+            loadTimer += dt;
+            if (loadTimer >= LOAD_DURATION) state = MAIN_MENU;
+        }
+
+        // --- Main menu ---
+        else if (state == MAIN_MENU)
+        {
+            // Refresh Resume availability every frame
+            FILE *chk = fopen("savegame.txt", "r");
+            mainMenu.enabled[1] = (chk != NULL);
+            if (chk) fclose(chk);
+
+            int mchoice = UpdateMenu(&mainMenu);
+            if      (mchoice == 0) { state = LEVEL_SELECT; levelMenu.selected = 0; }
+            else if (mchoice == 1)
+            {
+                int ls = (int)PLAYING;
+                if (LoadGame("savegame.txt", &ls, &currentLevel, &score,
+                             &player, &shootCooldown, enemies, &numRows, &enemyCount,
+                             &enemyShootTimer, &dropTimer, playerBullets, enemyBullets,
+                             &boss, bossBullets))
+                    state = (GameState)ls;
+            }
+            else if (mchoice == 2) { returnState = MAIN_MENU; state = LEADERBOARD; }
+            else if (mchoice == 3) shouldExit = true;
+        }
+
+        // --- Level select ---
+        else if (state == LEVEL_SELECT)
+        {
+            if (IsKeyPressed(KEY_ESCAPE)) { state = MAIN_MENU; mainMenu.selected = 0; }
+            int lchoice = UpdateMenu(&levelMenu);
+            if (lchoice == 0)
             {
                 currentLevel = 0;
-                ResetLevel(enemies, &enemyCount, &numRows, &levels[currentLevel],
+                ResetLevel(enemies, &enemyCount, &numRows, &levels[0],
                            playerBullets, enemyBullets, &player,
                            &enemyShootTimer, &dropTimer, &score);
                 state = PLAYING;
             }
-            if (IsKeyPressed(KEY_TWO))
+            else if (lchoice == 1)
             {
                 currentLevel = 1;
-                ResetLevel(enemies, &enemyCount, &numRows, &levels[currentLevel],
+                ResetLevel(enemies, &enemyCount, &numRows, &levels[1],
                            playerBullets, enemyBullets, &player,
                            &enemyShootTimer, &dropTimer, &score);
                 state = PLAYING;
             }
-            if (IsKeyPressed(KEY_THREE))
+            else if (lchoice == 2)
             {
                 currentLevel = 2;
-                // Reset player/bullets via ResetLevel (0 rows = no formation)
                 ResetLevel(enemies, &enemyCount, &numRows, &levels[2],
                            playerBullets, enemyBullets, &player,
                            &enemyShootTimer, &dropTimer, &score);
-                // Clear boss bullets
                 for (int i = 0; i < MAX_BOSS_BULLETS; i++) bossBullets[i].active = false;
                 ResetBoss(&boss);
                 state = BOSS_FIGHT;
             }
+            else if (lchoice == 3) { state = MAIN_MENU; mainMenu.selected = 0; }
         }
 
-        if (state == PLAYING || state == BOSS_FIGHT)
+        // --- Win/Lose handlers ---
+        else if (state == GAME_WON && IsKeyPressed(KEY_ENTER))
         {
+            remove("savegame.txt");
+            if (IsHighScore(leaderboard, leaderCount, score))
+            { nameBuffer[0] = '\0'; nameLen = 0; state = NAME_ENTRY; }
+            else state = MAIN_MENU;
+        }
+        else if (state == GAME_LOST && IsKeyPressed(KEY_ENTER))
+        {
+            remove("savegame.txt");
+            state = MAIN_MENU;
+        }
+
+        // --- Pause menu (ESC/P = quick resume, or navigate with arrows) ---
+        else if (state == PAUSED)
+        {
+            if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_P))
+            {
+                state = pausedFrom; // quick resume without menu
+            }
+            else
+            {
+                int pchoice = UpdateMenu(&pauseMenu);
+                if      (pchoice == 0) state = pausedFrom;
+                else if (pchoice == 1) { state = LEVEL_SELECT; levelMenu.selected = 0; }
+                else if (pchoice == 2) { returnState = PAUSED; state = LEADERBOARD; }
+                else if (pchoice == 3) shouldExit = true;
+            }
+        }
+
+        // --- Leaderboard view ---
+        else if (state == LEADERBOARD)
+        {
+            if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_ENTER))
+                state = returnState;
+        }
+
+        // --- Name entry after new high score ---
+        else if (state == NAME_ENTRY)
+        {
+            int ch = GetCharPressed();
+            while (ch > 0)
+            {
+                if (nameLen < MAX_NAME_LEN - 1 && ch >= 32 && ch <= 125)
+                { nameBuffer[nameLen++] = (char)ch; nameBuffer[nameLen] = '\0'; }
+                ch = GetCharPressed();
+            }
+            if (IsKeyPressed(KEY_BACKSPACE) && nameLen > 0)
+                nameBuffer[--nameLen] = '\0';
+            // Require at least 1 character before submitting
+            if (IsKeyPressed(KEY_ENTER) && nameLen > 0)
+            {
+                InsertScore(leaderboard, &leaderCount,
+                            nameBuffer, score, currentLevel + 1);
+                SaveLeaderboard("leaderboard.txt", leaderboard, leaderCount);
+                remove("savegame.txt");
+                state = MAIN_MENU;
+            }
+        }
+
+        // --- ESC or P pauses (auto-saves state to savegame.txt) ---
+        else if ((state == PLAYING || state == BOSS_FIGHT) &&
+                 (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_P)))
+        {
+            pausedFrom = state;
+            SaveGame("savegame.txt", (int)state, currentLevel, score,
+                     &player, shootCooldown, enemies, numRows, enemyCount,
+                     enemyShootTimer, dropTimer, playerBullets, enemyBullets,
+                     &boss, bossBullets);
+            state = PAUSED;
+            pauseMenu.selected = 0;
+            autoSaveTimer = 0.0f; // reset autosave timer after manual save
+        }
+
+        // --- Active gameplay (PLAYING + BOSS_FIGHT share player/enemy logic) ---
+        else if (state == PLAYING || state == BOSS_FIGHT)
+        {
+            // --- Periodic auto-save (every 10 s) ---
+            autoSaveTimer += dt;
+            if (autoSaveTimer >= AUTOSAVE_INTERVAL)
+            {
+                SaveGame("savegame.txt", (int)state, currentLevel, score,
+                         &player, shootCooldown, enemies, numRows, enemyCount,
+                         enemyShootTimer, dropTimer, playerBullets, enemyBullets,
+                         &boss, bossBullets);
+                autoSaveTimer = 0.0f;
+            }
 
             // Move player left/right
             if (IsKeyDown(KEY_LEFT))
@@ -945,19 +1415,7 @@ int main(void)
             }
         }
 
-        // --- Win/lose: return to main menu ---
-        if (state == GAME_WON || state == GAME_LOST)
-        {
-            if (IsKeyPressed(KEY_ENTER))
-                state = MAIN_MENU;
-        }
-
-        // --- Boss fight placeholder ---
-        if (state == BOSS_FIGHT)
-        {
-            if (IsKeyPressed(KEY_ENTER))
-                state = MAIN_MENU;
-        }
+        // (Win/Lose/Pause/Leaderboard/NameEntry handled above in the main else-if chain)
 
         // Draw everything
         BeginDrawing();
@@ -983,6 +1441,9 @@ int main(void)
         }
 
         DrawText(TextFormat("ENEMIES: %d", enemyCount), 20, 80, 25, RED);
+        // Show pause hint during active gameplay
+        if (state == PLAYING || state == BOSS_FIGHT)
+            DrawText("[P] Pause", WINDOW_WIDTH - 120, 20, 18, DARKGRAY);
 
         // Draw all living enemies
         for (int i = 0; i < numRows; i++)
@@ -1066,32 +1527,110 @@ int main(void)
                 size, WHITE);
         }
 
-        // --- Main menu draw ---
-        if (state == MAIN_MENU)
+        // --- Loading screen draw ---
+        if (state == LOADING)
         {
             DrawRectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, (Color){0, 0, 0, 200});
-            DrawText("SPACE INVADERS", WINDOW_WIDTH / 2 - 175, 180, 50, WHITE);
-            DrawText("Select Level:", WINDOW_WIDTH / 2 - 100, 300, 30, WHITE);
-            DrawText("1  -  Easy   [ BASIC | RAPID | TANK ]",          WINDOW_WIDTH / 2 - 215, 370, 25, GREEN);
-            DrawText("2  -  Hard   [ All 5 types | 1.4x Speed ]",       WINDOW_WIDTH / 2 - 225, 415, 25, YELLOW);
-            DrawText("3  -  Boss   [ Rapid | Star | Circle attacks ]",   WINDOW_WIDTH / 2 - 260, 460, 25, RED);
-            DrawText(TextFormat("Last Score: %d", score), WINDOW_WIDTH / 2 - 80, 540, 20, LIGHTGRAY);
+            int tW = MeasureText("SPACE INVADERS", 50);
+            DrawText("SPACE INVADERS", WINDOW_WIDTH / 2 - tW / 2, 280, 50, WHITE);
+            int barW = 400, barH = 16;
+            int barX = WINDOW_WIDTH / 2 - barW / 2, barY = 440;
+            float prog = loadTimer / LOAD_DURATION;
+            if (prog > 1.0f) prog = 1.0f;
+            DrawRectangle(barX, barY, barW, barH, DARKGRAY);
+            DrawRectangle(barX, barY, (int)(barW * prog), barH, GREEN);
+            DrawRectangleLines(barX, barY, barW, barH, WHITE);
+            int ldW = MeasureText("Loading...", 20);
+            DrawText("Loading...", WINDOW_WIDTH / 2 - ldW / 2, barY + 25, 20, LIGHTGRAY);
+        }
+
+        // --- Main menu draw ---
+        if (state == MAIN_MENU) DrawMenu(&mainMenu);
+
+        // --- Level select draw ---
+        if (state == LEVEL_SELECT) DrawMenu(&levelMenu);
+
+        // --- Pause menu (frozen game scene underneath + overlay) ---
+        if (state == PAUSED) DrawMenu(&pauseMenu);
+
+        // --- Leaderboard draw ---
+        if (state == LEADERBOARD)
+        {
+            DrawRectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, (Color){0, 0, 0, 215});
+            int lbW = MeasureText("LEADERBOARD", 44);
+            DrawText("LEADERBOARD", WINDOW_WIDTH / 2 - lbW / 2, 155, 44, GOLD);
+            DrawText("RANK   NAME             SCORE   LEVEL",
+                     WINDOW_WIDTH / 2 - 200, 235, 22, LIGHTGRAY);
+            DrawLine(WINDOW_WIDTH / 2 - 210, 265,
+                     WINDOW_WIDTH / 2 + 210, 265, DARKGRAY);
+            Color rankC[3] = {GOLD, LIGHTGRAY, WHITE};
+            for (int i = 0; i < leaderCount; i++)
+            {
+                Color c = (i < 3) ? rankC[i] : WHITE;
+                DrawText(TextFormat(" %d.   %-14s   %5d      %d",
+                         i + 1, leaderboard[i].name,
+                         leaderboard[i].score, leaderboard[i].level),
+                         WINDOW_WIDTH / 2 - 200, 280 + i * 48, 24, c);
+            }
+            int escW = MeasureText("ESC / ENTER to go back", 18);
+            DrawText("ESC / ENTER to go back",
+                     WINDOW_WIDTH / 2 - escW / 2, 565, 18, LIGHTGRAY);
+        }
+
+        // --- Name entry draw ---
+        if (state == NAME_ENTRY)
+        {
+            DrawRectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, (Color){0, 0, 0, 215});
+            int h1W = MeasureText("NEW HIGH SCORE!", 44);
+            DrawText("NEW HIGH SCORE!", WINDOW_WIDTH / 2 - h1W / 2, 165, 44, GOLD);
+            DrawText(TextFormat("Score: %d", score),
+                     WINDOW_WIDTH / 2 - 60, 240, 30, WHITE);
+            int h2W = MeasureText("Enter your name:", 26);
+            DrawText("Enter your name:", WINDOW_WIDTH / 2 - h2W / 2, 325, 26, WHITE);
+            int boxX = WINDOW_WIDTH / 2 - 150;
+            DrawRectangle(boxX, 370, 300, 42, DARKGRAY);
+            DrawRectangleLines(boxX, 370, 300, 42, WHITE);
+            DrawText(nameBuffer, boxX + 10, 378, 26, YELLOW);
+            if ((int)(GetTime() * 2) % 2 == 0)
+                DrawText("_",
+                         boxX + 10 + MeasureText(nameBuffer, 26), 378, 26, YELLOW);
+            // Show a prompt that changes once a name has been typed
+            if (nameLen == 0)
+            {
+                int h3W = MeasureText("Type your name, then press ENTER", 18);
+                DrawText("Type your name, then press ENTER",
+                         WINDOW_WIDTH / 2 - h3W / 2, 428, 18, LIGHTGRAY);
+            }
+            else
+            {
+                int h3W = MeasureText("Press ENTER to confirm", 18);
+                DrawText("Press ENTER to confirm",
+                         WINDOW_WIDTH / 2 - h3W / 2, 428, 18, GREEN);
+            }
         }
 
         // --- Win/lose overlay ---
         if (state == GAME_WON)
         {
             DrawRectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, (Color){0, 0, 0, 180});
-            DrawText("YOU WON!", WINDOW_WIDTH / 2 - 100, WINDOW_HEIGHT / 2 - 40, 40, GREEN);
-            DrawText(TextFormat("Score: %d", score), WINDOW_WIDTH / 2 - 70, WINDOW_HEIGHT / 2 + 15, 28, WHITE);
-            DrawText("Press ENTER for menu", WINDOW_WIDTH / 2 - 140, WINDOW_HEIGHT / 2 + 70, 22, LIGHTGRAY);
+            DrawText("YOU WON!", WINDOW_WIDTH / 2 - 100, WINDOW_HEIGHT / 2 - 60, 40, GREEN);
+            DrawText(TextFormat("Score: %d", score),
+                     WINDOW_WIDTH / 2 - 70, WINDOW_HEIGHT / 2 - 5, 28, WHITE);
+            if (IsHighScore(leaderboard, leaderCount, score))
+                DrawText("New High Score!  Press ENTER to claim",
+                         WINDOW_WIDTH / 2 - 215, WINDOW_HEIGHT / 2 + 50, 22, GOLD);
+            else
+                DrawText("Press ENTER to continue",
+                         WINDOW_WIDTH / 2 - 140, WINDOW_HEIGHT / 2 + 50, 22, LIGHTGRAY);
         }
         else if (state == GAME_LOST)
         {
             DrawRectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, (Color){0, 0, 0, 180});
-            DrawText("GAME OVER", WINDOW_WIDTH / 2 - 120, WINDOW_HEIGHT / 2 - 40, 40, RED);
-            DrawText(TextFormat("Score: %d", score), WINDOW_WIDTH / 2 - 70, WINDOW_HEIGHT / 2 + 15, 28, WHITE);
-            DrawText("Press ENTER for menu", WINDOW_WIDTH / 2 - 140, WINDOW_HEIGHT / 2 + 70, 22, LIGHTGRAY);
+            DrawText("GAME OVER", WINDOW_WIDTH / 2 - 120, WINDOW_HEIGHT / 2 - 60, 40, RED);
+            DrawText(TextFormat("Score: %d", score),
+                     WINDOW_WIDTH / 2 - 70, WINDOW_HEIGHT / 2 - 5, 28, WHITE);
+            DrawText("Press ENTER to continue",
+                     WINDOW_WIDTH / 2 - 140, WINDOW_HEIGHT / 2 + 50, 22, LIGHTGRAY);
         }
         // --- Boss fight draw ---
         if (state == BOSS_FIGHT && boss.active)
@@ -1125,6 +1664,17 @@ int main(void)
         }
 
         EndDrawing();
+    }
+
+    // --- Save on force-quit (X button / Alt+F4) ---
+    // Only save if the player was actively in a game (not menus)
+    if (state == PLAYING || state == BOSS_FIGHT || state == PAUSED)
+    {
+        int saveState = (state == PAUSED) ? (int)pausedFrom : (int)state;
+        SaveGame("savegame.txt", saveState, currentLevel, score,
+                 &player, shootCooldown, enemies, numRows, enemyCount,
+                 enemyShootTimer, dropTimer, playerBullets, enemyBullets,
+                 &boss, bossBullets);
     }
 
     // Clean up

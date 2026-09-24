@@ -4,7 +4,40 @@ All changes to `main.c` are recorded here in reverse-chronological order.
 
 ---
 
-## [9] — 2026-09-24 · Grid → Matrix Enemy Movement + 5 Enemy Types
+## [10] — 2026-09-24 · Full Menu System, Leaderboard, Save/Load, Pause
+
+**File:** `main.c`  **Author:** AI
+
+### What changed
+Completely revamped the game state machine to support a full multi-screen flow, added a global pause menu, built a save/resume system tracking the entire game state, and added a top-5 leaderboard with name entry. All gameplay/collision logic remained untouched.
+
+### Details
+
+#### State Machine Expansion
+- `GameState` enum extended from 5 states to 10: `LOADING`, `MAIN_MENU`, `LEVEL_SELECT`, `PLAYING`, `PAUSED`, `GAME_WON`, `GAME_LOST`, `BOSS_FIGHT`, `LEADERBOARD`, `NAME_ENTRY`.
+- Startup begins on a new `LOADING` screen (2.5s cosmetic progress bar).
+
+#### Unified Menu System
+- Added a reusable `Menu` struct and `UpdateMenu()`, `DrawMenu()` helpers.
+- Supports unified navigation: Arrow Up/Down, Mouse Hover, and ENTER/Click to confirm.
+- Handles disabled/grayed-out items (e.g., "Resume Game" is disabled if no save file exists).
+- Powers the `MAIN_MENU`, `LEVEL_SELECT`, and `PAUSED` screens.
+
+#### Save / Load (`savegame.txt`)
+- Pressing ESC during `PLAYING` or `BOSS_FIGHT` triggers `PAUSED` and immediately auto-saves the complete game state to `savegame.txt`.
+- Save format is plain text, line-by-line (e.g., `px 400.0`, `score 150`, followed by loop dumps of active enemies/bullets).
+- "Resume Game" on the main menu reads this file to seamlessly restore the session, even after the game was forcefully closed.
+- The save file is deleted upon winning or losing, as the session has concluded.
+
+#### Leaderboard (`leaderboard.txt`)
+- Top-5 high scores are tracked and saved in plain text.
+- If the file is missing on the first run, it seeds 5 default entries (all named "tamim" with descending scores 500 down to 100).
+- Winning the game (`GAME_WON`) checks if the final score beats the lowest leaderboard entry. If it does, the player enters the `NAME_ENTRY` state to type their name before returning to the main menu.
+
+#### Drawing / Visuals
+- The `PAUSED` menu draws over the top of the actual game scene (the update logic is skipped, but the draw logic still runs), creating a true overlay effect.
+
+---
 
 **File:** `main.c`  **Author:** AI + User
 
