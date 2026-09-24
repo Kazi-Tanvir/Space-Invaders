@@ -40,3 +40,20 @@ for level 2
 - increase the speed of enemy 
 - will have all 5 types of enemy 
 level 3 : will be a boss fight [ no need to implement this right now , but plan for it]
+
+add a boss fight 
+- it will have 3 kinds of attacks 
+1. rapid shooting [ singular firing]
+2. star shpaed shooting [it will shoot in all directions but this should be slower than rapid]
+3. circle shooting [it will shoot ]
+
+finally it will randomly spawn basic , rapid enemy after a certain amount of health is lost 
+
+there will be health bar at the top of screen [ total hits 50]
+ collsiion animation should red tint  
+
+
+ here are some fixes that needs to be implemented in boss round [ level 3]
+1. this level should end with the death of the boss 
+2. the random enemies should appear from the enemy not random position 
+3. boss should have both x and y axis [ not too much in y] movement 
