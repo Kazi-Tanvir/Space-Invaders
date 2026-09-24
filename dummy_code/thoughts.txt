@@ -1,0 +1,30 @@
+1. make matrix for individual enemy [row , columnwise manupulation]
+2. add levels 
+3. add boss level , level 3
+4. 5 types 
+
+
+
+n this code i am using grid to control the enemy but instead i want to use matrix for the enemy manipulation 
+- by usgin matrix i will able to control the enemy movemnets 
+- and i will be able to add variety to enemy movemnets pattern [ mostly in row]
+- here are the five suggested enemy type that i want to add 
+type 1 : basic: [normal fire , normal movemnets , health 1 ]
+type 2 : dummy: [takes the front row , doesnt fire , health 2 ][ moves similar to basic enemy]
+type 3 : rapid: [moves faster  , health 1 ][shoots like basic enemy]
+type 4 : zigzag: [  two rows are alloted to them where they move like sine wave ][but sharp edge like triangle]
+type 5 : tank: [ health 3 , ][shoots like basic enemy ][ move slowly]
+
+think throughly how you will implement these features 
+and make sure it doesnt break any of the previous codes 
+- think of edge cases before implementation
+- here are few that i found : 
+ 1. enemy collides on each other 
+ 2. hitbox is smaller than enemy size [ it should be the same size ]
+ 3. add spacing in x axis between enemy
+ 4. they should reverse if they collide with the boundary or other enemy
+ 5. they will go down in y axis overtime they should go down after a set amount of time 
+  
+make sure you dont change anything before proper planning 
+during the plan make critcally analysis on why your code is correct and always think if it can be solves with simpler code and loigic and do minimal change 
+reason why your code will work than make a change
