@@ -78,3 +78,36 @@ here are few bugs
 4. there no way you can resume a game [there are no file to game data for pausing and resuming in game ]
 5. you cannot enter name after making a high score 
 6. in menu enter and few other navigation arent working properly 
+
+
+
+Add the screen shake effect to main.c
+
+-add the screen shake effect from reference to the main.c
+-when the player gets hit the screen should shake 
+-when the boss gets hit the screen should shake
+-after the player gets hit there should be a invincibility period of  where the player cannot get hit again(duration same as reference)
+-before implementing the screen shake effect, I will analyze the current code structure to ensure that adding this feature does not break any existing functionality.   
+-keep in mind that main.c might have different variables and structures than reference.c, so I will need to adapt the screen shake logic accordingly.
+
+
+
+
+Add the particles effect to main.c
+-add the particle effect from reference to the main.c
+-when enemy dies, there should be a particle effect
+-when the player dies, there should be a particle effect
+-when the boss dies, there should be a particle effect
+-keep in mind that main.c might have different variables and structures than reference.c, so I will need to adapt the particle effect logic accordingly.
+-before implementing the particle effect, I will analyze the current code structure to ensure that adding this feature does not break any existing functionality.
+-make a implementation plan first and ask me after making the plan
+-dont start coding before getting approval for the implementation plan.
+
+
+
+
+Boss fight improvement
+-after losing 75% health boss should come bottom-mid of screen and stay for few seconds while moving in a higher speed and go back to original state
+-the enemis spawned from boss should look like they are coming out of boss(now they look like they are spawned from thin air )
+-the rapid attack of boss should be much faster
+-also boss fires are coming out of thin air fix their position(so that it seems like boss is firing)

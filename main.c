@@ -8,56 +8,58 @@
 #define WINDOW_HEIGHT 800
 
 // Starfield settings
-#define STAR_COUNT_FAR  150
-#define STAR_COUNT_MID   80
-#define STAR_COUNT_NEAR  30
+#define STAR_COUNT_FAR 150
+#define STAR_COUNT_MID 80
+#define STAR_COUNT_NEAR 30
 #define STAR_TOTAL (STAR_COUNT_FAR + STAR_COUNT_MID + STAR_COUNT_NEAR)
-#define STAR_SPEED_FAR   30.0f
-#define STAR_SPEED_MID   70.0f
+#define STAR_SPEED_FAR 30.0f
+#define STAR_SPEED_MID 70.0f
 #define STAR_SPEED_NEAR 160.0f
 
 // Player settings
 #define PLAYER_START_X (WINDOW_WIDTH / 2 - 60) // Centered horizontally
-#define PLAYER_Y (WINDOW_HEIGHT - 100) // Positioned near the bottom
+#define PLAYER_Y (WINDOW_HEIGHT - 100)         // Positioned near the bottom
 #define PLAYER_SPEED 300.0f
 #define PLAYER_WIDTH 120
 #define PLAYER_HEIGHT 60
 #define PLAYER_MAX_X (WINDOW_WIDTH - PLAYER_WIDTH)
 #define PLAYER_LIVES 3
+#define PLAYER_INVINCIBLE_TIME 1.5f
+#define SHAKE_DURATION 0.3f
 
 // Player bullet settings
 #define MAX_PLAYER_BULLETS 25
 #define BULLET_SPEED 1000.0f
 #define BULLET_WIDTH 5
 #define BULLET_HEIGHT 15
-#define PLAYER_SHOOT_COOLDOWN 0.1f
+#define PLAYER_SHOOT_COOLDOWN 0.2f
 
 // Enemy matrix layout
-#define MAX_ENEMY_ROWS 8          // max rows any level can have (sized for level 2's 7 rows)
+#define MAX_ENEMY_ROWS 8 // max rows any level can have (sized for level 2's 7 rows)
 #define ENEMY_COLS 11
-#define ENEMY_SPACING_X 55        // horizontal spacing (50px enemy + 5px gap)
-#define ENEMY_SPACING_Y 60        // vertical spacing between rows
-#define ENEMY_HITBOX 50           // hitbox matches visual size
-#define ENEMY_START_X 90          // left edge of formation
-#define ENEMY_START_Y 100         // top edge of formation
+#define ENEMY_SPACING_X 55 // horizontal spacing (50px enemy + 5px gap)
+#define ENEMY_SPACING_Y 60 // vertical spacing between rows
+#define ENEMY_HITBOX 50    // hitbox matches visual size
+#define ENEMY_START_X 90   // left edge of formation
+#define ENEMY_START_Y 100  // top edge of formation
 #define ENEMY_BOUND_LEFT 10
 #define ENEMY_BOUND_RIGHT (WINDOW_WIDTH - ENEMY_HITBOX - 10)
 #define ENEMY_DROP_STEP 20.0f
-#define ENEMY_DROP_INTERVAL 8.0f  // seconds between Y-drops
+#define ENEMY_DROP_INTERVAL 8.0f // seconds between Y-drops
 
 // Level system
 #define NUM_LEVELS 3
 
 // Zigzag settings
-#define ZIGZAG_PERIOD 2.0f        // seconds for one full triangle wave cycle
-#define ZIGZAG_AMPLITUDE 15.0f    // vertical oscillation in pixels (peak to center)
+#define ZIGZAG_PERIOD 2.0f     // seconds for one full triangle wave cycle
+#define ZIGZAG_AMPLITUDE 15.0f // vertical oscillation in pixels (peak to center)
 
 // Enemy bullet settings
 #define MAX_ENEMY_BULLETS 10
 #define ENEMY_BULLET_SPEED 300.0f
 #define ENEMY_BULLET_WIDTH 5
 #define ENEMY_BULLET_HEIGHT 15
-#define ENEMY_SHOOT_COOLDOWN 1.0f
+#define ENEMY_SHOOT_COOLDOWN 0.5f
 
 // Explosion effect settings
 #define EXPLOSION_GROW_RATE 6.0f
@@ -65,9 +67,13 @@
 #define EXPLOSION_SCALE 12.0f
 #define EXPLOSION_OFFSET 15
 
+// Particle effect settings
+#define MAX_PARTICLES 100
+#define PARTICLE_LIFETIME 0.5f
+
 // Boss settings
-#define BOSS_WIDTH 140
-#define BOSS_HEIGHT 90
+#define BOSS_WIDTH 300
+#define BOSS_HEIGHT 300
 #define BOSS_MAX_HEALTH 50
 #define BOSS_SPEED 60.0f
 #define BOSS_START_Y 60
@@ -75,23 +81,35 @@
 #define BOSS_RAPID_SPEED 350.0f
 #define BOSS_STAR_SPEED 150.0f
 #define BOSS_CIRCLE_SPEED 120.0f
-#define BOSS_RAPID_COOLDOWN 0.5f
+#define BOSS_RAPID_COOLDOWN 0.2f
 #define BOSS_STAR_COOLDOWN 0.6f
 #define BOSS_CIRCLE_COOLDOWN 1.5f
-#define BOSS_PHASE_ATTACK 3.0f    // seconds per attack phase
-#define BOSS_PHASE_PAUSE 1.5f     // seconds pause between attacks
-#define BOSS_MINION_WAVE1_HP 35   // spawn BASIC minions at this HP
-#define BOSS_MINION_WAVE2_HP 20   // spawn RAPID minions at this HP
-#define BOSS_MINION_COLS 5        // enemies per minion wave
+#define BOSS_PHASE_ATTACK 3.0f  // seconds per attack phase
+#define BOSS_PHASE_PAUSE 1.5f   // seconds pause between attacks
+#define BOSS_MINION_WAVE1_HP 35 // spawn BASIC minions at this HP
+#define BOSS_MINION_WAVE2_HP 20 // spawn RAPID minions at this HP
+#define BOSS_MINION_COLS 5      // enemies per minion wave
+// Bullet fire-point: center-X, ~60% down the sprite (crab body/mouth)
+#define BOSS_BULLET_Y_RATIO   0.60f
+// Rage mode: triggered at 25% HP — boss rushes to mid-screen, not below
+#define BOSS_RAGE_HP_THRESHOLD (BOSS_MAX_HEALTH / 4)
+#define BOSS_RAGE_SPEED_MUL   2.5f
+#define BOSS_RAGE_DURATION    3.0f
+// Y target = mid-screen, ensuring boss stays in upper half
+#define BOSS_RAGE_TARGET_Y    (WINDOW_HEIGHT / 2.0f - BOSS_HEIGHT / 2.0f)
+// Hitbox trim: crab body is in upper ~55% of sprite; 18% horizontal margin each side
+// Keeps collision aligned with the visible shell, not the transparent leg/claw area
+#define BOSS_HIT_X_MARGIN  (BOSS_WIDTH  * 0.18f)  // trim from each side
+#define BOSS_HIT_Y_OFFSET  (BOSS_HEIGHT * 0.08f)  // small top gap (antenna space)
+#define BOSS_HIT_WIDTH     (BOSS_WIDTH  - BOSS_HIT_X_MARGIN * 2)
+#define BOSS_HIT_HEIGHT    (BOSS_HEIGHT * 0.50f)   // only the solid body, no legs
 
 // Score values per enemy type
-#define SCORE_DUMMY   5
-#define SCORE_BASIC  10
+#define SCORE_DUMMY 5
+#define SCORE_BASIC 10
 #define SCORE_ZIGZAG 15
-#define SCORE_RAPID  20
-#define SCORE_TANK   30
-
-
+#define SCORE_RAPID 20
+#define SCORE_TANK 30
 
 //  Structs
 
@@ -110,6 +128,7 @@ typedef struct Player
     int width;
     int height;
     int lives;
+    float invincibleTimer;
 } Player;
 
 typedef struct Bullet
@@ -119,14 +138,15 @@ typedef struct Bullet
     bool active;
 } Bullet;
 
-typedef enum EnemyType{
+typedef enum EnemyType
+{
     ENEMY_DEAD = 0,
     ENEMY_DUMMY,
     ENEMY_BASIC,
     ENEMY_ZIGZAG,
     ENEMY_TANK,
     ENEMY_RAPID,
-}EnemyType;
+} EnemyType;
 
 typedef struct Enemy
 {
@@ -140,22 +160,22 @@ typedef struct Enemy
     float shootCooldown; // How often this enemy fires
     int health;
     int maxHealth;
-    int hitFlashFrames;  // >0 means draw with RED tint
+    int hitFlashFrames; // >0 means draw with RED tint
     bool active;
 } Enemy;
 
 typedef enum GameState
 {
-    LOADING,       // startup loading bar (2.5 s)
-    MAIN_MENU,     // New Game / Resume / Leaderboard / Exit
-    LEVEL_SELECT,  // pick level 1 / 2 / 3
+    LOADING,      // startup loading bar (2.5 s)
+    MAIN_MENU,    // New Game / Resume / Leaderboard / Exit
+    LEVEL_SELECT, // pick level 1 / 2 / 3
     PLAYING,
-    PAUSED,        // in-game pause menu
+    PAUSED, // in-game pause menu
     GAME_WON,
     GAME_LOST,
     BOSS_FIGHT,
-    LEADERBOARD,   // view top-5 scores
-    NAME_ENTRY,    // type name after new high score
+    LEADERBOARD, // view top-5 scores
+    NAME_ENTRY,  // type name after new high score
 } GameState;
 
 typedef struct Explosion
@@ -165,30 +185,44 @@ typedef struct Explosion
     bool active;
 } Explosion;
 
+typedef struct Particle
+{
+    float x, y;
+    float vx, vy;
+    float size;
+    float life;
+    Color color;
+    bool active;
+} Particle;
+
 // Directional bullet for boss attacks (arbitrary vx,vy instead of just speed)
 typedef struct BossBullet
 {
     float x, y;
-    float vx, vy;  // velocity components — allows any direction
+    float vx, vy; // velocity components — allows any direction
     bool active;
 } BossBullet;
 
 typedef struct Boss
 {
-    float x, y;             // top-left of hitbox
-    float speed;            // horizontal movement speed
-    float direction;        // +1.0 right, -1.0 left
-    float yDir;             // +1.0 down, -1.0 up (gentle Y drift)
-    float yTimer;           // elapsed time for Y bounce period
+    float x, y;      // top-left of hitbox
+    float speed;     // horizontal movement speed
+    float direction; // +1.0 right, -1.0 left
+    float yDir;      // +1.0 down, -1.0 up (gentle Y drift)
+    float yTimer;    // elapsed time for Y bounce period
     int health;
     int maxHealth;
-    int hitFlashFrames;     // >0 = draw RED tint
-    int attackPhase;        // 0=rapid,1=pause,2=star,3=pause,4=circle,5=pause (then loops)
-    float phaseTimer;       // time spent in current phase
-    float shootTimer;       // cooldown within current attack phase
-    bool minionsSpawned1;   // true after wave 1 (BASIC) spawned
-    bool minionsSpawned2;   // true after wave 2 (RAPID) spawned
+    int hitFlashFrames;   // >0 = draw RED tint
+    int attackPhase;      // 0=rapid,1=pause,2=star,3=pause,4=circle,5=pause (then loops)
+    float phaseTimer;     // time spent in current phase
+    float shootTimer;     // cooldown within current attack phase
+    bool minionsSpawned1; // true after wave 1 (BASIC) spawned
+    bool minionsSpawned2; // true after wave 2 (RAPID) spawned
     bool active;
+    // Rage mode
+    int   ragePhase;     // 0=normal,1=dash-to-mid,2=raging,3=returning
+    float rageTimer;     // time spent at mid-screen during rage
+    bool  rageTriggered; // one-shot flag
 } Boss;
 
 // Loading screen
@@ -201,27 +235,27 @@ typedef struct Menu
 {
     const char *title;
     const char *items[MAX_MENU_ITEMS];
-    int  count;
-    int  selected;
-    bool enabled[MAX_MENU_ITEMS];  // false = grayed-out, skipped by keyboard
+    int count;
+    int selected;
+    bool enabled[MAX_MENU_ITEMS]; // false = grayed-out, skipped by keyboard
 } Menu;
 
 // Leaderboard
 #define MAX_LEADERBOARD 5
-#define MAX_NAME_LEN    16
+#define MAX_NAME_LEN 16
 
 typedef struct LeaderEntry
 {
     char name[MAX_NAME_LEN];
-    int  score;
-    int  level;
+    int score;
+    int level;
 } LeaderEntry;
 
 typedef struct LevelConfig
 {
-    int numRows;                           // active enemy rows for this level
-    EnemyType rowTypes[MAX_ENEMY_ROWS];    // enemy type per row (top to bottom)
-    float speedMultiplier;                 // scales all enemy base speeds
+    int numRows;                        // active enemy rows for this level
+    EnemyType rowTypes[MAX_ENEMY_ROWS]; // enemy type per row (top to bottom)
+    float speedMultiplier;              // scales all enemy base speeds
 } LevelConfig;
 
 // Level definitions (index 0 = level 1, index 1 = level 2, index 2 = level 3)
@@ -229,14 +263,14 @@ static const LevelConfig levels[NUM_LEVELS] = {
     // Level 1: 4 rows, 3 enemy types, normal speed
     {
         .numRows = 4,
-        .rowTypes = { ENEMY_TANK, ENEMY_RAPID, ENEMY_BASIC, ENEMY_BASIC },
+        .rowTypes = {ENEMY_TANK, ENEMY_RAPID, ENEMY_BASIC, ENEMY_BASIC},
         .speedMultiplier = 1.0f,
     },
     // Level 2: 7 rows, all 5 enemy types, 1.4x speed
     {
-        .numRows = 7,
-        .rowTypes = { ENEMY_TANK, ENEMY_RAPID, ENEMY_ZIGZAG, ENEMY_ZIGZAG,
-                      ENEMY_BASIC, ENEMY_BASIC, ENEMY_DUMMY },
+        .numRows = 6,
+        .rowTypes = {ENEMY_TANK, ENEMY_RAPID, ENEMY_ZIGZAG, ENEMY_ZIGZAG,
+                     ENEMY_BASIC, ENEMY_DUMMY},
         .speedMultiplier = 1.4f,
     },
     // Level 3: boss fight (no formation — handled by BOSS_FIGHT state)
@@ -246,7 +280,6 @@ static const LevelConfig levels[NUM_LEVELS] = {
         .speedMultiplier = 1.0f,
     },
 };
-
 
 //  Score per enemy type
 
@@ -277,46 +310,47 @@ static void InitEnemy(Enemy *e, int row, int col, int type, float speedMul)
     e->x = ENEMY_START_X + col * ENEMY_SPACING_X;
     e->y = ENEMY_START_Y + row * ENEMY_SPACING_Y;
     e->baseY = e->y;
-    e->direction = 1.0f;   // all start moving right (row-coherent)
+    e->direction = 1.0f; // all start moving right (row-coherent)
     e->moveTimer = 0;
     e->shootTimer = (float)GetRandomValue(0, 200) / 100.0f; // stagger initial shots
     e->hitFlashFrames = 0;
     e->active = true;
-    switch(type){
-        case ENEMY_DUMMY:
-            e->speed = 20 * speedMul;
-            e->health = 2;           // spec: health 2
-            e->shootCooldown = 999.0f; // dummy doesn't fire
-            e->maxHealth = e->health;
-            break;
-        case ENEMY_BASIC:
-            e->speed = 35 * speedMul;
-            e->health = 1;
-            e->shootCooldown = 1.5f;
-            e->maxHealth = e->health;
-            break;
-        case ENEMY_ZIGZAG:
-            e->speed = 50 * speedMul;
-            e->health = 1;           // spec: health 1
-            e->shootCooldown = 1.0f;
-            e->maxHealth = e->health;
-            break;
-        case ENEMY_TANK:
-            e->speed = 15 * speedMul;
-            e->health = 3;           // spec: health 3
-            e->shootCooldown = 3.0f;
-            e->maxHealth = e->health;
-            break;
-        case ENEMY_RAPID:
-            e->speed = 80 * speedMul;
-            e->health = 1;
-            e->shootCooldown = 0.5f;
-            e->maxHealth = e->health;
-            break;
-        case ENEMY_DEAD:
-            e->speed = 0;
-            e->active = false;
-            break;
+    switch (type)
+    {
+    case ENEMY_DUMMY:
+        e->speed = 20 * speedMul;
+        e->health = 2;             // spec: health 2
+        e->shootCooldown = 999.0f; // dummy doesn't fire
+        e->maxHealth = e->health;
+        break;
+    case ENEMY_BASIC:
+        e->speed = 45 * speedMul;
+        e->health = 1;
+        e->shootCooldown = 1.5f;
+        e->maxHealth = e->health;
+        break;
+    case ENEMY_ZIGZAG:
+        e->speed = 60 * speedMul;
+        e->health = 1; // spec: health 1
+        e->shootCooldown = 1.0f;
+        e->maxHealth = e->health;
+        break;
+    case ENEMY_TANK:
+        e->speed = 30 * speedMul;
+        e->health = 3; // spec: health 3
+        e->shootCooldown = 3.0f;
+        e->maxHealth = e->health;
+        break;
+    case ENEMY_RAPID:
+        e->speed = 100 * speedMul;
+        e->health = 1;
+        e->shootCooldown = 0.5f;
+        e->maxHealth = e->health;
+        break;
+    case ENEMY_DEAD:
+        e->speed = 0;
+        e->active = false;
+        break;
     }
 }
 
@@ -333,6 +367,7 @@ static void ResetLevel(Enemy enemies[][ENEMY_COLS], int *enemyCount, int *numRow
     *dropTimer = 0.0f;
     *score = 0;
     player->lives = PLAYER_LIVES;
+    player->invincibleTimer = 0.0f;
     player->position.x = PLAYER_START_X;
 
     // Init active rows from level config
@@ -370,6 +405,31 @@ static void ResetBoss(Boss *b)
     b->minionsSpawned1 = false;
     b->minionsSpawned2 = false;
     b->active = true;
+    b->ragePhase = 0;
+    b->rageTimer = 0.0f;
+    b->rageTriggered = false;
+}
+
+static void SpawnParticles(Particle particles[], float px, float py, int count)
+{
+    Color particleColors[4] = {RED, ORANGE, YELLOW, WHITE};
+    int spawned = 0;
+
+    for (int i = 0; i < MAX_PARTICLES && spawned < count; i++)
+    {
+        if (!particles[i].active)
+        {
+            particles[i].active = true;
+            particles[i].x = px;
+            particles[i].y = py;
+            particles[i].vx = (float)GetRandomValue(-150, 150);
+            particles[i].vy = (float)GetRandomValue(-200, 50);
+            particles[i].size = (float)GetRandomValue(3, 8);
+            particles[i].life = PARTICLE_LIFETIME;
+            particles[i].color = particleColors[GetRandomValue(0, 3)];
+            spawned++;
+        }
+    }
 }
 
 // --- Leaderboard helpers ---
@@ -406,7 +466,8 @@ static void LoadLeaderboard(const char *path, LeaderEntry lb[], int *count)
 static void SaveLeaderboard(const char *path, const LeaderEntry lb[], int count)
 {
     FILE *f = fopen(path, "w");
-    if (!f) return;
+    if (!f)
+        return;
     for (int i = 0; i < count; i++)
         fprintf(f, "%s %d %d\n", lb[i].name, lb[i].score, lb[i].level);
     fclose(f);
@@ -414,7 +475,8 @@ static void SaveLeaderboard(const char *path, const LeaderEntry lb[], int count)
 
 static bool IsHighScore(const LeaderEntry lb[], int count, int score)
 {
-    if (count < MAX_LEADERBOARD) return true;
+    if (count < MAX_LEADERBOARD)
+        return true;
     return score > lb[count - 1].score;
 }
 
@@ -423,7 +485,11 @@ static void InsertScore(LeaderEntry lb[], int *count,
 {
     int pos = *count;
     for (int i = 0; i < *count; i++)
-        if (score > lb[i].score) { pos = i; break; }
+        if (score > lb[i].score)
+        {
+            pos = i;
+            break;
+        }
     int newCount = (*count < MAX_LEADERBOARD) ? *count + 1 : MAX_LEADERBOARD;
     for (int i = newCount - 1; i > pos; i--)
         lb[i] = lb[i - 1];
@@ -441,14 +507,18 @@ static int UpdateMenu(Menu *menu)
     if (IsKeyPressed(KEY_UP))
     {
         int prev = menu->selected;
-        do { menu->selected = (menu->selected - 1 + menu->count) % menu->count; }
-        while (!menu->enabled[menu->selected] && menu->selected != prev);
+        do
+        {
+            menu->selected = (menu->selected - 1 + menu->count) % menu->count;
+        } while (!menu->enabled[menu->selected] && menu->selected != prev);
     }
     if (IsKeyPressed(KEY_DOWN))
     {
         int prev = menu->selected;
-        do { menu->selected = (menu->selected + 1) % menu->count; }
-        while (!menu->enabled[menu->selected] && menu->selected != prev);
+        do
+        {
+            menu->selected = (menu->selected + 1) % menu->count;
+        } while (!menu->enabled[menu->selected] && menu->selected != prev);
     }
     // Mouse hover — only update highlight if the mouse has actually moved
     // (prevents stationary cursor from overriding keyboard selection every frame)
@@ -460,7 +530,7 @@ static int UpdateMenu(Menu *menu)
         for (int i = 0; i < menu->count; i++)
         {
             Rectangle r = {(float)(WINDOW_WIDTH / 2 - 200),
-                            (float)(320 + i * 55 - 5), 400.0f, 44.0f};
+                           (float)(320 + i * 55 - 5), 400.0f, 44.0f};
             if (CheckCollisionPointRec(mouse, r) && menu->enabled[i])
                 menu->selected = i;
         }
@@ -488,8 +558,8 @@ static void DrawMenu(const Menu *menu)
     {
         int y = 320 + i * 55;
         Color c = !menu->enabled[i]
-                    ? DARKGRAY
-                    : (i == menu->selected ? YELLOW : WHITE);
+                      ? DARKGRAY
+                      : (i == menu->selected ? YELLOW : WHITE);
         if (i == menu->selected && menu->enabled[i])
             DrawRectangle(WINDOW_WIDTH / 2 - 200, y - 5, 400, 44,
                           (Color){255, 255, 255, 25});
@@ -508,18 +578,19 @@ static void SaveGame(const char *path, int stateVal, int level, int score,
                      const Boss *boss, const BossBullet bBullets[])
 {
     FILE *f = fopen(path, "w");
-    if (!f) return;
+    if (!f)
+        return;
     fprintf(f, "SAVEGAME v1\n");
-    fprintf(f, "state %d\n",      stateVal);
-    fprintf(f, "level %d\n",      level);
-    fprintf(f, "score %d\n",      score);
-    fprintf(f, "px %.3f\n",       player->position.x);
-    fprintf(f, "plives %d\n",     player->lives);
-    fprintf(f, "pcd %.5f\n",      shootCd);
-    fprintf(f, "numRows %d\n",    numRows);
-    fprintf(f, "eCount %d\n",     enemyCount);
-    fprintf(f, "est %.5f\n",      enemyShootTimer);
-    fprintf(f, "dt %.5f\n",       dropTimer);
+    fprintf(f, "state %d\n", stateVal);
+    fprintf(f, "level %d\n", level);
+    fprintf(f, "score %d\n", score);
+    fprintf(f, "px %.3f\n", player->position.x);
+    fprintf(f, "plives %d\n", player->lives);
+    fprintf(f, "pcd %.5f\n", shootCd);
+    fprintf(f, "numRows %d\n", numRows);
+    fprintf(f, "eCount %d\n", enemyCount);
+    fprintf(f, "est %.5f\n", enemyShootTimer);
+    fprintf(f, "dt %.5f\n", dropTimer);
     for (int i = 0; i < MAX_ENEMY_ROWS; i++)
         for (int j = 0; j < ENEMY_COLS; j++)
             fprintf(f, "E %d %d %d %.3f %.3f %.3f %.3f %.3f %.5f %.5f %.5f %d %d %d %d\n",
@@ -538,17 +609,17 @@ static void SaveGame(const char *path, int stateVal, int level, int score,
         fprintf(f, "EB %d %d %.3f %.3f %.3f\n",
                 i, eBullets[i].active ? 1 : 0,
                 eBullets[i].position.x, eBullets[i].position.y, eBullets[i].speed);
-    fprintf(f, "BA %d\n",   boss->active ? 1 : 0);
-    fprintf(f, "BH %d\n",   boss->health);
+    fprintf(f, "BA %d\n", boss->active ? 1 : 0);
+    fprintf(f, "BH %d\n", boss->health);
     fprintf(f, "BX %.3f\n", boss->x);
     fprintf(f, "BY %.3f\n", boss->y);
     fprintf(f, "BD %.5f\n", boss->direction);
     fprintf(f, "BYT %.5f\n", boss->yTimer);
     fprintf(f, "BPT %.5f\n", boss->phaseTimer);
     fprintf(f, "BST %.5f\n", boss->shootTimer);
-    fprintf(f, "BP %d\n",   boss->attackPhase);
-    fprintf(f, "BM1 %d\n",  boss->minionsSpawned1 ? 1 : 0);
-    fprintf(f, "BM2 %d\n",  boss->minionsSpawned2 ? 1 : 0);
+    fprintf(f, "BP %d\n", boss->attackPhase);
+    fprintf(f, "BM1 %d\n", boss->minionsSpawned1 ? 1 : 0);
+    fprintf(f, "BM2 %d\n", boss->minionsSpawned2 ? 1 : 0);
     for (int i = 0; i < MAX_BOSS_BULLETS; i++)
         fprintf(f, "BB %d %d %.3f %.3f %.3f %.3f\n",
                 i, bBullets[i].active ? 1 : 0,
@@ -565,17 +636,25 @@ static bool LoadGame(const char *path, int *stateVal, int *level, int *score,
                      Boss *boss, BossBullet bBullets[])
 {
     FILE *f = fopen(path, "r");
-    if (!f) return false;
+    if (!f)
+        return false;
     char hdr[16], ver[8];
     if (fscanf(f, "%15s %7s", hdr, ver) != 2 || strcmp(hdr, "SAVEGAME") != 0)
-        { fclose(f); return false; }
+    {
+        fclose(f);
+        return false;
+    }
 
     // Clear arrays before loading
     for (int i = 0; i < MAX_ENEMY_ROWS; i++)
-        for (int j = 0; j < ENEMY_COLS; j++) enemies[i][j].type = ENEMY_DEAD;
-    for (int i = 0; i < MAX_PLAYER_BULLETS; i++) pBullets[i].active = false;
-    for (int i = 0; i < MAX_ENEMY_BULLETS;  i++) eBullets[i].active = false;
-    for (int i = 0; i < MAX_BOSS_BULLETS;   i++) bBullets[i].active = false;
+        for (int j = 0; j < ENEMY_COLS; j++)
+            enemies[i][j].type = ENEMY_DEAD;
+    for (int i = 0; i < MAX_PLAYER_BULLETS; i++)
+        pBullets[i].active = false;
+    for (int i = 0; i < MAX_ENEMY_BULLETS; i++)
+        eBullets[i].active = false;
+    for (int i = 0; i < MAX_BOSS_BULLETS; i++)
+        bBullets[i].active = false;
 
     char k[8];
     fscanf(f, "%7s %d", k, stateVal);
@@ -598,29 +677,40 @@ static bool LoadGame(const char *path, int *stateVal, int *level, int *score,
             fscanf(f, "%7s %d %d %d %f %f %f %f %f %f %f %f %d %d %d %d",
                    k, &ri, &rj, &type, &x, &y, &bY, &spd, &dir, &mt, &st, &sc,
                    &health, &maxH, &hflash, &act);
-            enemies[i][j].type           = (EnemyType)type;
-            enemies[i][j].x              = x;      enemies[i][j].y            = y;
-            enemies[i][j].baseY          = bY;     enemies[i][j].speed        = spd;
-            enemies[i][j].direction      = dir;    enemies[i][j].moveTimer    = mt;
-            enemies[i][j].shootTimer     = st;     enemies[i][j].shootCooldown= sc;
-            enemies[i][j].health         = health; enemies[i][j].maxHealth    = maxH;
+            enemies[i][j].type = (EnemyType)type;
+            enemies[i][j].x = x;
+            enemies[i][j].y = y;
+            enemies[i][j].baseY = bY;
+            enemies[i][j].speed = spd;
+            enemies[i][j].direction = dir;
+            enemies[i][j].moveTimer = mt;
+            enemies[i][j].shootTimer = st;
+            enemies[i][j].shootCooldown = sc;
+            enemies[i][j].health = health;
+            enemies[i][j].maxHealth = maxH;
             enemies[i][j].hitFlashFrames = hflash;
-            enemies[i][j].active         = act ? true : false;
+            enemies[i][j].active = act ? true : false;
         }
     }
     for (int i = 0; i < MAX_PLAYER_BULLETS; i++)
     {
-        int idx, act; float x, y, spd;
+        int idx, act;
+        float x, y, spd;
         fscanf(f, "%7s %d %d %f %f %f", k, &idx, &act, &x, &y, &spd);
         pBullets[i].active = act ? true : false;
-        pBullets[i].position.x = x; pBullets[i].position.y = y; pBullets[i].speed = spd;
+        pBullets[i].position.x = x;
+        pBullets[i].position.y = y;
+        pBullets[i].speed = spd;
     }
     for (int i = 0; i < MAX_ENEMY_BULLETS; i++)
     {
-        int idx, act; float x, y, spd;
+        int idx, act;
+        float x, y, spd;
         fscanf(f, "%7s %d %d %f %f %f", k, &idx, &act, &x, &y, &spd);
         eBullets[i].active = act ? true : false;
-        eBullets[i].position.x = x; eBullets[i].position.y = y; eBullets[i].speed = spd;
+        eBullets[i].position.x = x;
+        eBullets[i].position.y = y;
+        eBullets[i].speed = spd;
     }
     int bAct, bH, bPh, bM1, bM2;
     float bX, bY2, bD, bYT, bPT, bST;
@@ -635,27 +725,34 @@ static bool LoadGame(const char *path, int *stateVal, int *level, int *score,
     fscanf(f, "%7s %d", k, &bPh);
     fscanf(f, "%7s %d", k, &bM1);
     fscanf(f, "%7s %d", k, &bM2);
-    boss->active          = bAct ? true : false;
-    boss->health          = bH;         boss->maxHealth   = BOSS_MAX_HEALTH;
-    boss->x               = bX;         boss->y           = bY2;
-    boss->direction       = bD;         boss->speed       = BOSS_SPEED;
-    boss->yTimer          = bYT;        boss->phaseTimer  = bPT;
-    boss->shootTimer      = bST;        boss->attackPhase = bPh;
+    boss->active = bAct ? true : false;
+    boss->health = bH;
+    boss->maxHealth = BOSS_MAX_HEALTH;
+    boss->x = bX;
+    boss->y = bY2;
+    boss->direction = bD;
+    boss->speed = BOSS_SPEED;
+    boss->yTimer = bYT;
+    boss->phaseTimer = bPT;
+    boss->shootTimer = bST;
+    boss->attackPhase = bPh;
     boss->minionsSpawned1 = bM1 ? true : false;
     boss->minionsSpawned2 = bM2 ? true : false;
-    boss->hitFlashFrames  = 0;
+    boss->hitFlashFrames = 0;
     for (int i = 0; i < MAX_BOSS_BULLETS; i++)
     {
-        int idx, act; float x, y, vx, vy;
+        int idx, act;
+        float x, y, vx, vy;
         fscanf(f, "%7s %d %d %f %f %f %f", k, &idx, &act, &x, &y, &vx, &vy);
         bBullets[i].active = act ? true : false;
-        bBullets[i].x = x; bBullets[i].y = y;
-        bBullets[i].vx = vx; bBullets[i].vy = vy;
+        bBullets[i].x = x;
+        bBullets[i].y = y;
+        bBullets[i].vx = vx;
+        bBullets[i].vy = vy;
     }
     fclose(f);
     return true;
 }
-
 
 //  Main
 
@@ -663,6 +760,8 @@ int main(void)
 {
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Game");
     SetTargetFPS(60);
+    HideCursor(); // player ship acts as the cursor
+    InitAudioDevice();
 
     // --- Starfield initialization: 3 parallax layers ---
     Star stars[STAR_TOTAL];
@@ -696,12 +795,32 @@ int main(void)
 
     // Load all textures
     Texture2D spaceshipTex = LoadTexture("resources/spaceship.png");
-    Texture2D dummy        = LoadTexture("resources/dummy.png");    // ENEMY_DUMMY
-    Texture2D basicTex     = LoadTexture("resources/dummy.png");    // ENEMY_BASIC (same sprite, cyan tint)
-    Texture2D zigzag       = LoadTexture("resources/zigzag.png");   // ENEMY_ZIGZAG
-    Texture2D rapidTex     = LoadTexture("resources/zigzag.png");   // ENEMY_RAPID (same sprite, yellow tint)
-    Texture2D tank         = LoadTexture("resources/tank.png");     // ENEMY_TANK
-    Texture2D heartTex     = LoadTexture("resources/heart.png");
+    Texture2D dummy = LoadTexture("resources/dummy.png");     // ENEMY_DUMMY
+    Texture2D basicTex = LoadTexture("resources/dummy.png");  // ENEMY_BASIC (same sprite, cyan tint)
+    Texture2D zigzag = LoadTexture("resources/zigzag.png");   // ENEMY_ZIGZAG
+    Texture2D rapidTex = LoadTexture("resources/zigzag.png"); // ENEMY_RAPID (same sprite, yellow tint)
+    Texture2D tank = LoadTexture("resources/tank.png");       // ENEMY_TANK
+    Texture2D heartTex = LoadTexture("resources/heart.png");
+    Texture2D bossTex = LoadTexture("resources/boss.png");    // Level 3 boss sprite
+    // Source rect covers the full boss texture; dest rect sizes it to BOSS_WIDTH x BOSS_HEIGHT
+    Rectangle bossTexSrc = {0, 0, (float)bossTex.width, (float)bossTex.height};
+    Rectangle bossTexDst = {0, 0, BOSS_WIDTH, BOSS_HEIGHT}; // x/y set each frame
+    Vector2   bossTexOrigin = {0, 0};
+
+    // Load sound effects
+    Sound sndShoot     = LoadSound("resources/shoot.wav");      // player fires
+    Sound sndEnemyDie  = LoadSound("resources/enemy_die.wav");  // enemy killed
+    Sound sndBossHit   = LoadSound("resources/boss_hit.wav");   // boss takes damage
+    Sound sndBossRage  = LoadSound("resources/boss_rage.wav");  // rage mode trigger
+    Sound sndEnemyMove = LoadSound("resources/enemy_move.wav"); // enemy march beat
+    // Enemy march beat timer
+    float enemyMoveTimer   = 0.0f;
+    float enemyMoveBeat    = 0.55f; // seconds between march blips (speeds up below)
+
+    // Deep-space ambient background track (loops seamlessly)
+    Music bgMusic = LoadMusicStream("resources/bg_space.wav");
+    SetMusicVolume(bgMusic, 0.40f); // sits quietly under the SFX
+    PlayMusicStream(bgMusic);
 
     // Set up the player
     Player player = {
@@ -710,6 +829,7 @@ int main(void)
         .width = PLAYER_WIDTH,
         .height = PLAYER_HEIGHT,
         .lives = PLAYER_LIVES,
+        .invincibleTimer = 0.0f,
     };
 
     // Player bullets
@@ -718,9 +838,9 @@ int main(void)
 
     // Enemy matrix — sized for the largest possible level
     Enemy enemies[MAX_ENEMY_ROWS][ENEMY_COLS];
-    int numRows = 0;       // set by ResetLevel() from the chosen level config
-    int enemyCount = 0;    // set by ResetLevel()
-    int currentLevel = 0;  // index into levels[] (0-based)
+    int numRows = 0;      // set by ResetLevel() from the chosen level config
+    int enemyCount = 0;   // set by ResetLevel()
+    int currentLevel = 0; // index into levels[] (0-based)
 
     // Global timers
     float enemyShootTimer = 0.0f;
@@ -736,15 +856,23 @@ int main(void)
     // Explosion state
     Explosion explosion = {.position = {0, 0}, .timer = 0, .active = false};
 
+    // Particle state
+    Particle particles[MAX_PARTICLES] = {0};
+
+    // Screen shake state
+    float shakeTimer = 0.0f;
+    int shakeOffsetX = 0;
+    int shakeOffsetY = 0;
+
     // Score, game state, and new system variables
     int score = 0;
-    GameState state    = LOADING;   // always starts with loading screen
-    float loadTimer    = 0.0f;
-    bool  shouldExit   = false;
+    GameState state = LOADING; // always starts with loading screen
+    float loadTimer = 0.0f;
+    bool shouldExit = false;
     GameState returnState = MAIN_MENU; // where LEADERBOARD goes back to
-    GameState pausedFrom  = PLAYING;   // PLAYING or BOSS_FIGHT before pause
-    float autoSaveTimer   = 0.0f;      // periodic auto-save every 10 s during gameplay
-    #define AUTOSAVE_INTERVAL 10.0f
+    GameState pausedFrom = PLAYING;    // PLAYING or BOSS_FIGHT before pause
+    float autoSaveTimer = 0.0f;        // periodic auto-save every 10 s during gameplay
+#define AUTOSAVE_INTERVAL 10.0f
 
     // Leaderboard — load from file (or seed defaults on first run)
     LeaderEntry leaderboard[MAX_LEADERBOARD];
@@ -753,34 +881,33 @@ int main(void)
 
     // Name entry buffer
     char nameBuffer[MAX_NAME_LEN] = {0};
-    int  nameLen = 0;
+    int nameLen = 0;
 
     // Menu definitions
     Menu mainMenu = {
-        .title    = "SPACE INVADERS",
-        .items    = {"New Game", "Resume Game", "Leaderboard", "Exit", ""},
-        .count    = 4, .selected = 0,
-        .enabled  = {true, false, true, true, false}
-    };
+        .title = "SPACE INVADERS",
+        .items = {"New Game", "Resume Game", "Leaderboard", "Exit", ""},
+        .count = 4,
+        .selected = 0,
+        .enabled = {true, false, true, true, false}};
     Menu levelMenu = {
-        .title    = "SELECT LEVEL",
-        .items    = {"Level 1  -  Easy", "Level 2  -  Hard",
-                     "Level 3  -  Boss", "Back", ""},
-        .count    = 4, .selected = 0,
-        .enabled  = {true, true, true, true, false}
-    };
+        .title = "SELECT LEVEL",
+        .items = {"Level 1  -  Easy", "Level 2  -  Hard",
+                  "Level 3  -  Boss", "Back", ""},
+        .count = 4,
+        .selected = 0,
+        .enabled = {true, true, true, true, false}};
     Menu pauseMenu = {
-        .title    = "PAUSED",
-        .items    = {"Resume", "New Game", "Leaderboard", "Exit", ""},
-        .count    = 4, .selected = 0,
-        .enabled  = {true, true, true, true, false}
-    };
+        .title = "PAUSED",
+        .items = {"Resume", "New Game", "Leaderboard", "Exit", ""},
+        .count = 4,
+        .selected = 0,
+        .enabled = {true, true, true, true, false}};
 
     // Init enemy array to dead so nothing is drawn before a level is chosen
     for (int i = 0; i < MAX_ENEMY_ROWS; i++)
         for (int j = 0; j < ENEMY_COLS; j++)
             enemies[i][j].type = ENEMY_DEAD;
-
 
     // Rects for drawing the player ship texture
     Rectangle source = {0, 0, spaceshipTex.width, spaceshipTex.height};
@@ -791,6 +918,9 @@ int main(void)
     while (!WindowShouldClose() && !shouldExit)
     {
         float dt = GetFrameTime();
+
+        // Pump the looping background music every frame (required by raylib)
+        UpdateMusicStream(bgMusic);
 
         // --- Update starfield (always runs) ---
         for (int i = 0; i < STAR_TOTAL; i++)
@@ -803,11 +933,45 @@ int main(void)
             }
         }
 
+        // --- Screen shake update ---
+        if (player.invincibleTimer > 0.0f)
+            player.invincibleTimer -= dt;
+
+        if (shakeTimer > 0.0f)
+        {
+            shakeTimer -= dt;
+            shakeOffsetX = GetRandomValue(-3, 3);
+            shakeOffsetY = GetRandomValue(-3, 3);
+        }
+        else
+        {
+            shakeOffsetX = 0;
+            shakeOffsetY = 0;
+        }
+
+        // --- Particle update ---
+        for (int i = 0; i < MAX_PARTICLES; i++)
+        {
+            if (!particles[i].active)
+                continue;
+            particles[i].life -= dt;
+            if (particles[i].life <= 0.0f)
+            {
+                particles[i].active = false;
+                continue;
+            }
+            particles[i].x += particles[i].vx * dt;
+            particles[i].y += particles[i].vy * dt;
+            float ratio = particles[i].life / PARTICLE_LIFETIME;
+            particles[i].size = particles[i].size * ratio + 0.5f;
+        }
+
         // --- Loading screen ---
         if (state == LOADING)
         {
             loadTimer += dt;
-            if (loadTimer >= LOAD_DURATION) state = MAIN_MENU;
+            if (loadTimer >= LOAD_DURATION)
+                state = MAIN_MENU;
         }
 
         // --- Main menu ---
@@ -816,10 +980,15 @@ int main(void)
             // Refresh Resume availability every frame
             FILE *chk = fopen("savegame.txt", "r");
             mainMenu.enabled[1] = (chk != NULL);
-            if (chk) fclose(chk);
+            if (chk)
+                fclose(chk);
 
             int mchoice = UpdateMenu(&mainMenu);
-            if      (mchoice == 0) { state = LEVEL_SELECT; levelMenu.selected = 0; }
+            if (mchoice == 0)
+            {
+                state = LEVEL_SELECT;
+                levelMenu.selected = 0;
+            }
             else if (mchoice == 1)
             {
                 int ls = (int)PLAYING;
@@ -829,14 +998,23 @@ int main(void)
                              &boss, bossBullets))
                     state = (GameState)ls;
             }
-            else if (mchoice == 2) { returnState = MAIN_MENU; state = LEADERBOARD; }
-            else if (mchoice == 3) shouldExit = true;
+            else if (mchoice == 2)
+            {
+                returnState = MAIN_MENU;
+                state = LEADERBOARD;
+            }
+            else if (mchoice == 3)
+                shouldExit = true;
         }
 
         // --- Level select ---
         else if (state == LEVEL_SELECT)
         {
-            if (IsKeyPressed(KEY_ESCAPE)) { state = MAIN_MENU; mainMenu.selected = 0; }
+            if (IsKeyPressed(KEY_ESCAPE))
+            {
+                state = MAIN_MENU;
+                mainMenu.selected = 0;
+            }
             int lchoice = UpdateMenu(&levelMenu);
             if (lchoice == 0)
             {
@@ -860,11 +1038,16 @@ int main(void)
                 ResetLevel(enemies, &enemyCount, &numRows, &levels[2],
                            playerBullets, enemyBullets, &player,
                            &enemyShootTimer, &dropTimer, &score);
-                for (int i = 0; i < MAX_BOSS_BULLETS; i++) bossBullets[i].active = false;
+                for (int i = 0; i < MAX_BOSS_BULLETS; i++)
+                    bossBullets[i].active = false;
                 ResetBoss(&boss);
                 state = BOSS_FIGHT;
             }
-            else if (lchoice == 3) { state = MAIN_MENU; mainMenu.selected = 0; }
+            else if (lchoice == 3)
+            {
+                state = MAIN_MENU;
+                mainMenu.selected = 0;
+            }
         }
 
         // --- Win/Lose handlers ---
@@ -872,8 +1055,13 @@ int main(void)
         {
             remove("savegame.txt");
             if (IsHighScore(leaderboard, leaderCount, score))
-            { nameBuffer[0] = '\0'; nameLen = 0; state = NAME_ENTRY; }
-            else state = MAIN_MENU;
+            {
+                nameBuffer[0] = '\0';
+                nameLen = 0;
+                state = NAME_ENTRY;
+            }
+            else
+                state = MAIN_MENU;
         }
         else if (state == GAME_LOST && IsKeyPressed(KEY_ENTER))
         {
@@ -891,10 +1079,20 @@ int main(void)
             else
             {
                 int pchoice = UpdateMenu(&pauseMenu);
-                if      (pchoice == 0) state = pausedFrom;
-                else if (pchoice == 1) { state = LEVEL_SELECT; levelMenu.selected = 0; }
-                else if (pchoice == 2) { returnState = PAUSED; state = LEADERBOARD; }
-                else if (pchoice == 3) shouldExit = true;
+                if (pchoice == 0)
+                    state = pausedFrom;
+                else if (pchoice == 1)
+                {
+                    state = LEVEL_SELECT;
+                    levelMenu.selected = 0;
+                }
+                else if (pchoice == 2)
+                {
+                    returnState = PAUSED;
+                    state = LEADERBOARD;
+                }
+                else if (pchoice == 3)
+                    shouldExit = true;
             }
         }
 
@@ -912,7 +1110,10 @@ int main(void)
             while (ch > 0)
             {
                 if (nameLen < MAX_NAME_LEN - 1 && ch >= 32 && ch <= 125)
-                { nameBuffer[nameLen++] = (char)ch; nameBuffer[nameLen] = '\0'; }
+                {
+                    nameBuffer[nameLen++] = (char)ch;
+                    nameBuffer[nameLen] = '\0';
+                }
                 ch = GetCharPressed();
             }
             if (IsKeyPressed(KEY_BACKSPACE) && nameLen > 0)
@@ -956,10 +1157,21 @@ int main(void)
                 autoSaveTimer = 0.0f;
             }
 
-            // Move player left/right
+            // --- Player movement ---
+            // Mouse: snap to cursor only when mouse has actually moved this frame.
+            // When mouse is stationary, keyboard has full control (no conflict).
+            {
+                static int lastMouseX = -1;
+                int curMouseX = GetMouseX();
+                if (IsCursorOnScreen() && curMouseX != lastMouseX)
+                {
+                    player.position.x = (float)curMouseX - player.width / 2.0f;
+                    lastMouseX = curMouseX;
+                }
+            }
+            // Keyboard: left/right always apply on top of (or instead of) mouse
             if (IsKeyDown(KEY_LEFT))
                 player.position.x -= player.speed * dt;
-
             if (IsKeyDown(KEY_RIGHT))
                 player.position.x += player.speed * dt;
 
@@ -972,7 +1184,7 @@ int main(void)
             // Player shooting with cooldown
             shootCooldown -= dt;
 
-            if (IsKeyDown(KEY_SPACE) && shootCooldown <= 0.0f)
+            if ((IsKeyDown(KEY_SPACE) || IsMouseButtonDown(MOUSE_BUTTON_LEFT)) && shootCooldown <= 0.0f)
             {
                 for (int i = 0; i < MAX_PLAYER_BULLETS; i++)
                 {
@@ -983,6 +1195,7 @@ int main(void)
                         playerBullets[i].position.y = PLAYER_Y;
                         playerBullets[i].speed = BULLET_SPEED;
                         shootCooldown = PLAYER_SHOOT_COOLDOWN;
+                        PlaySound(sndShoot); // ← laser pew
                         break;
                     }
                 }
@@ -1018,7 +1231,8 @@ int main(void)
                     }
                 }
 
-                if (!hasAlive) continue;
+                if (!hasAlive)
+                    continue;
 
                 // Find leftmost and rightmost alive enemy X positions in this row
                 float leftmostX = (float)WINDOW_WIDTH;
@@ -1027,8 +1241,10 @@ int main(void)
                 {
                     if (enemies[row][col].type != ENEMY_DEAD)
                     {
-                        if (enemies[row][col].x < leftmostX) leftmostX = enemies[row][col].x;
-                        if (enemies[row][col].x > rightmostX) rightmostX = enemies[row][col].x;
+                        if (enemies[row][col].x < leftmostX)
+                            leftmostX = enemies[row][col].x;
+                        if (enemies[row][col].x > rightmostX)
+                            rightmostX = enemies[row][col].x;
                     }
                 }
 
@@ -1062,7 +1278,7 @@ int main(void)
                         if (enemies[row][col].type == ENEMY_ZIGZAG)
                         {
                             float t = fmodf(enemies[row][col].moveTimer, ZIGZAG_PERIOD) / ZIGZAG_PERIOD;
-                            float wave = (t < 0.5f) ? (t * 2.0f) : (2.0f - t * 2.0f); // 0→1→0 triangle
+                            float wave = (t < 0.5f) ? (t * 2.0f) : (2.0f - t * 2.0f);  // 0→1→0 triangle
                             float yOffset = (wave - 0.5f) * (ZIGZAG_AMPLITUDE * 2.0f); // ±ZIGZAG_AMPLITUDE
                             enemies[row][col].y = enemies[row][col].baseY + yOffset;
                         }
@@ -1090,6 +1306,24 @@ int main(void)
                     }
                 }
                 dropTimer = 0.0f;
+            }
+            // --- Enemy march sound beat ---
+            // Plays enemy_move.wav periodically while enemies are alive;
+            // beat speeds up as enemy count drops (classic Space Invaders feel)
+            if (state == PLAYING && enemyCount > 0)
+            {
+                // Beat interval shrinks from 0.55 s (full grid) down to 0.15 s (last few)
+                enemyMoveBeat = 0.15f + 0.40f * ((float)enemyCount / (float)(MAX_ENEMY_ROWS * ENEMY_COLS));
+                enemyMoveTimer += dt;
+                if (enemyMoveTimer >= enemyMoveBeat)
+                {
+                    PlaySound(sndEnemyMove);
+                    enemyMoveTimer = 0.0f;
+                }
+            }
+            else
+            {
+                enemyMoveTimer = 0.0f; // reset when no enemies
             }
 
             // --- Enemy shooting (global timer, random pick, dummy excluded) ---
@@ -1165,6 +1399,12 @@ int main(void)
                                     enemies[j][k].type = ENEMY_DEAD;
                                     enemies[j][k].active = false;
                                     enemyCount--;
+                                    PlaySound(sndEnemyDie); // ← explosion pop
+
+                                    SpawnParticles(particles,
+                                                   enemies[j][k].x + ENEMY_HITBOX / 2.0f,
+                                                   enemies[j][k].y + ENEMY_HITBOX / 2.0f,
+                                                   5);
 
                                     explosion.position = (Vector2){enemies[j][k].x, enemies[j][k].y};
                                     explosion.active = true;
@@ -1175,7 +1415,7 @@ int main(void)
                         }
                     }
                 }
-                next_bullet:;
+            next_bullet:;
             }
 
             // Check if enemy bullets hit the player
@@ -1186,10 +1426,17 @@ int main(void)
                     Rectangle bulletRect = {enemyBullets[i].position.x, enemyBullets[i].position.y, ENEMY_BULLET_WIDTH, ENEMY_BULLET_HEIGHT};
                     Rectangle playerRect = {player.position.x, PLAYER_Y, player.width, player.height};
 
-                    if (CheckCollisionRecs(bulletRect, playerRect))
+                    if (CheckCollisionRecs(bulletRect, playerRect) && player.invincibleTimer <= 0.0f)
                     {
                         enemyBullets[i].active = false;
                         player.lives--;
+                        player.invincibleTimer = PLAYER_INVINCIBLE_TIME;
+                        shakeTimer = SHAKE_DURATION;
+
+                        SpawnParticles(particles,
+                                       player.position.x + player.width / 2.0f,
+                                       PLAYER_Y + player.height / 2.0f,
+                                       3);
 
                         explosion.position = (Vector2){player.position.x + player.width / 2, PLAYER_Y + player.height / 2};
                         explosion.active = true;
@@ -1218,38 +1465,99 @@ int main(void)
         // --- Boss fight update ---
         if (state == BOSS_FIGHT && boss.active)
         {
-            // Boss horizontal movement (bounces off screen edges)
-            boss.x += boss.speed * boss.direction * dt;
-            if (boss.x > WINDOW_WIDTH - BOSS_WIDTH - 20) { boss.x = WINDOW_WIDTH - BOSS_WIDTH - 20; boss.direction = -1.0f; }
-            if (boss.x < 20)                              { boss.x = 20;                              boss.direction =  1.0f; }
-
-            // Boss Y movement — triangle wave (sharp reversals like zigzag, not smooth sine)
-            // Period: 4 seconds, amplitude: ±30px from BOSS_START_Y
-            boss.yTimer += dt;
+            // --- Rage-mode trigger at 25% HP ---
+            if (!boss.rageTriggered && boss.health <= BOSS_RAGE_HP_THRESHOLD)
             {
-                float period = 4.0f;
-                float t = fmodf(boss.yTimer, period) / period;          // 0..1
-                float wave = (t < 0.5f) ? (t * 2.0f) : (2.0f - t * 2.0f); // 0→1→0 triangle
-                boss.y = BOSS_START_Y + (wave - 0.5f) * 60.0f;         // ±30px
+                boss.rageTriggered = true;
+                boss.ragePhase = 1; // begin dash toward mid-screen
+                PlaySound(sndBossRage); // ← dramatic alarm
+            }
+
+            // --- Rage state machine (no visual text/border) ---
+            if (boss.ragePhase == 1) // dashing to mid-screen
+            {
+                float targetX = WINDOW_WIDTH / 2.0f - BOSS_WIDTH / 2.0f;
+                float targetY = BOSS_RAGE_TARGET_Y; // = screen centre, never below
+                float spd = 600.0f * dt;
+                float dx = targetX - boss.x, dy = targetY - boss.y;
+                float d  = sqrtf(dx * dx + dy * dy);
+                if (d < spd)
+                {
+                    boss.x = targetX; boss.y = targetY;
+                    boss.ragePhase = 2; boss.rageTimer = 0.0f;
+                }
+                else { boss.x += (dx / d) * spd; boss.y += (dy / d) * spd; }
+            }
+            else if (boss.ragePhase == 2) // raging at mid-screen
+            {
+                float rageSpd = BOSS_SPEED * BOSS_RAGE_SPEED_MUL;
+                boss.x += rageSpd * boss.direction * dt;
+                if (boss.x > WINDOW_WIDTH - BOSS_WIDTH - 20)
+                    { boss.x = WINDOW_WIDTH - BOSS_WIDTH - 20; boss.direction = -1.0f; }
+                if (boss.x < 20)
+                    { boss.x = 20; boss.direction = 1.0f; }
+                boss.y = BOSS_RAGE_TARGET_Y; // locked at mid-screen Y
+                boss.rageTimer += dt;
+                if (boss.rageTimer >= BOSS_RAGE_DURATION) boss.ragePhase = 3;
+            }
+            else if (boss.ragePhase == 3) // returning to top zone
+            {
+                float targetX = WINDOW_WIDTH / 2.0f - BOSS_WIDTH / 2.0f;
+                float targetY = BOSS_START_Y;
+                float spd = 400.0f * dt;
+                float dx = targetX - boss.x, dy = targetY - boss.y;
+                float d  = sqrtf(dx * dx + dy * dy);
+                if (d < spd)
+                {
+                    boss.x = targetX; boss.y = targetY;
+                    boss.yTimer = 0.0f; // restart Y-bounce from top
+                    boss.ragePhase = 0;
+                }
+                else { boss.x += (dx / d) * spd; boss.y += (dy / d) * spd; }
+            }
+            else // ragePhase == 0: normal movement
+            {
+                boss.x += boss.speed * boss.direction * dt;
+                if (boss.x > WINDOW_WIDTH - BOSS_WIDTH - 20)
+                    { boss.x = WINDOW_WIDTH - BOSS_WIDTH - 20; boss.direction = -1.0f; }
+                if (boss.x < 20)
+                    { boss.x = 20; boss.direction = 1.0f; }
+
+                // Triangle-wave Y oscillation, ±30px from BOSS_START_Y
+                boss.yTimer += dt;
+                {
+                    float period = 4.0f;
+                    float t    = fmodf(boss.yTimer, period) / period;
+                    float wave = (t < 0.5f) ? (t * 2.0f) : (2.0f - t * 2.0f);
+                    boss.y = BOSS_START_Y + (wave - 0.5f) * 60.0f;
+                }
             }
 
             // Decrement boss hit flash
-            if (boss.hitFlashFrames > 0) boss.hitFlashFrames--;
+            if (boss.hitFlashFrames > 0)
+                boss.hitFlashFrames--;
 
             // --- Attack phase cycling ---
             boss.phaseTimer += dt;
             boss.shootTimer -= dt;
-            float bossCX = boss.x + BOSS_WIDTH / 2.0f;   // boss centre X
-            float bossCY = boss.y + BOSS_HEIGHT;          // bottom of boss (bullet origin)
+            // Bullets originate from center-X, 60% down the sprite (crab body/mouth)
+            float bossCX = boss.x + BOSS_WIDTH / 2.0f;
+            float bossCY = boss.y + BOSS_HEIGHT * BOSS_BULLET_Y_RATIO;
 
-            // Phase 0: Rapid — aimed at player
+            // Phase 0: Rapid — tilted toward player, clamped to ±1/3 screen width
             if (boss.attackPhase == 0 && boss.phaseTimer < BOSS_PHASE_ATTACK)
             {
                 if (boss.shootTimer <= 0.0f)
                 {
-                    float pdx = (player.position.x + player.width / 2.0f) - bossCX;
-                    float pdy = (float)PLAYER_Y - bossCY;
-                    float dist = sqrtf(pdx * pdx + pdy * pdy);
+                    float playerCX = player.position.x + player.width / 2.0f;
+                    float rawDX    = playerCX - bossCX;
+                    // Clamp horizontal tracking to 1/3 of screen width
+                    float maxTrack = WINDOW_WIDTH / 3.0f;
+                    float clampedDX = rawDX;
+                    if (clampedDX >  maxTrack) clampedDX =  maxTrack;
+                    if (clampedDX < -maxTrack) clampedDX = -maxTrack;
+                    float pdy  = (float)PLAYER_Y - bossCY;
+                    float dist = sqrtf(clampedDX * clampedDX + pdy * pdy);
                     if (dist > 0.0f)
                     {
                         for (int i = 0; i < MAX_BOSS_BULLETS; i++)
@@ -1258,8 +1566,8 @@ int main(void)
                             {
                                 bossBullets[i].x  = bossCX;
                                 bossBullets[i].y  = bossCY;
-                                bossBullets[i].vx = (pdx / dist) * BOSS_RAPID_SPEED;
-                                bossBullets[i].vy = (pdy / dist) * BOSS_RAPID_SPEED;
+                                bossBullets[i].vx = (clampedDX / dist) * BOSS_RAPID_SPEED;
+                                bossBullets[i].vy = (pdy       / dist) * BOSS_RAPID_SPEED;
                                 bossBullets[i].active = true;
                                 break;
                             }
@@ -1278,10 +1586,15 @@ int main(void)
                         float angle = a * (PI / 4.0f);
                         int slot = -1;
                         for (int i = 0; i < MAX_BOSS_BULLETS; i++)
-                            if (!bossBullets[i].active) { slot = i; break; }
-                        if (slot < 0) break;
-                        bossBullets[slot].x  = bossCX;
-                        bossBullets[slot].y  = bossCY;
+                            if (!bossBullets[i].active)
+                            {
+                                slot = i;
+                                break;
+                            }
+                        if (slot < 0)
+                            break;
+                        bossBullets[slot].x = bossCX;
+                        bossBullets[slot].y = bossCY;
                         bossBullets[slot].vx = cosf(angle) * BOSS_STAR_SPEED;
                         bossBullets[slot].vy = sinf(angle) * BOSS_STAR_SPEED;
                         bossBullets[slot].active = true;
@@ -1299,10 +1612,15 @@ int main(void)
                         float angle = a * (PI / 8.0f);
                         int slot = -1;
                         for (int i = 0; i < MAX_BOSS_BULLETS; i++)
-                            if (!bossBullets[i].active) { slot = i; break; }
-                        if (slot < 0) break;
-                        bossBullets[slot].x  = bossCX;
-                        bossBullets[slot].y  = bossCY;
+                            if (!bossBullets[i].active)
+                            {
+                                slot = i;
+                                break;
+                            }
+                        if (slot < 0)
+                            break;
+                        bossBullets[slot].x = bossCX;
+                        bossBullets[slot].y = bossCY;
                         bossBullets[slot].vx = cosf(angle) * BOSS_CIRCLE_SPEED;
                         bossBullets[slot].vy = sinf(angle) * BOSS_CIRCLE_SPEED;
                         bossBullets[slot].active = true;
@@ -1316,14 +1634,15 @@ int main(void)
             if (boss.phaseTimer >= phaseDur)
             {
                 boss.attackPhase = (boss.attackPhase + 1) % 6;
-                boss.phaseTimer  = 0.0f;
-                boss.shootTimer  = 0.0f;
+                boss.phaseTimer = 0.0f;
+                boss.shootTimer = 0.0f;
             }
 
             // --- Move all boss bullets ---
             for (int i = 0; i < MAX_BOSS_BULLETS; i++)
             {
-                if (!bossBullets[i].active) continue;
+                if (!bossBullets[i].active)
+                    continue;
                 bossBullets[i].x += bossBullets[i].vx * dt;
                 bossBullets[i].y += bossBullets[i].vy * dt;
                 // Deactivate when off screen
@@ -1333,21 +1652,38 @@ int main(void)
             }
 
             // --- Player bullets vs Boss ---
-            Rectangle bossRect = {boss.x, boss.y, BOSS_WIDTH, BOSS_HEIGHT};
+            // Hitbox trimmed to the visible crab body (upper body only, with side margins)
+            // so bullets must reach the shell rather than the transparent leg/claw area
+            Rectangle bossRect = {
+                boss.x + BOSS_HIT_X_MARGIN,
+                boss.y + BOSS_HIT_Y_OFFSET,
+                BOSS_HIT_WIDTH,
+                BOSS_HIT_HEIGHT
+            };
             for (int i = 0; i < MAX_PLAYER_BULLETS; i++)
             {
-                if (!playerBullets[i].active) continue;
+                if (!playerBullets[i].active)
+                    continue;
                 if (CheckCollisionPointRec(playerBullets[i].position, bossRect))
                 {
                     playerBullets[i].active = false;
                     boss.health--;
                     boss.hitFlashFrames = 5;
                     score += 2;
+                    PlaySound(sndBossHit); // ← deep thud
 
-                    // Trigger explosion at hit point
-                    explosion.position = playerBullets[i].position;
-                    explosion.active   = true;
-                    explosion.timer    = 0;
+                    if (boss.health <= 0)
+                    {
+                        shakeTimer = 0.6f; // only shake on the final boss kill
+                        SpawnParticles(particles,
+                                       boss.x + BOSS_WIDTH / 2.0f,
+                                       boss.y + BOSS_HEIGHT / 2.0f,
+                                       15);
+                        boss.active = false;
+                        state = GAME_WON;
+                    }
+
+                    // No explosion circle on boss hit (misaligned with sprite) — particles handle the effect
                 }
             }
 
@@ -1355,16 +1691,25 @@ int main(void)
             Rectangle playerRect = {player.position.x, PLAYER_Y, player.width, player.height};
             for (int i = 0; i < MAX_BOSS_BULLETS; i++)
             {
-                if (!bossBullets[i].active) continue;
+                if (!bossBullets[i].active)
+                    continue;
                 Rectangle bRect = {bossBullets[i].x - 4, bossBullets[i].y - 4, 8, 8};
-                if (CheckCollisionRecs(bRect, playerRect))
+                if (CheckCollisionRecs(bRect, playerRect) && player.invincibleTimer <= 0.0f)
                 {
                     bossBullets[i].active = false;
                     player.lives--;
+                    player.invincibleTimer = PLAYER_INVINCIBLE_TIME;
+                    shakeTimer = SHAKE_DURATION;
+
+                    SpawnParticles(particles,
+                                   player.position.x + player.width / 2.0f,
+                                   PLAYER_Y + player.height / 2.0f,
+                                   3);
+
                     explosion.position = (Vector2){player.position.x + player.width / 2.0f,
                                                    PLAYER_Y + player.height / 2.0f};
                     explosion.active = true;
-                    explosion.timer  = 0;
+                    explosion.timer = 0;
                 }
             }
 
@@ -1384,7 +1729,8 @@ int main(void)
                 }
                 for (int j = BOSS_MINION_COLS; j < ENEMY_COLS; j++)
                     enemies[0][j].type = ENEMY_DEAD;
-                if (numRows < 1) numRows = 1;
+                if (numRows < 1)
+                    numRows = 1;
                 enemyCount += BOSS_MINION_COLS;
                 boss.minionsSpawned1 = true;
             }
@@ -1401,7 +1747,8 @@ int main(void)
                 }
                 for (int j = BOSS_MINION_COLS; j < ENEMY_COLS; j++)
                     enemies[1][j].type = ENEMY_DEAD;
-                if (numRows < 2) numRows = 2;
+                if (numRows < 2)
+                    numRows = 2;
                 enemyCount += BOSS_MINION_COLS;
                 boss.minionsSpawned2 = true;
             }
@@ -1421,15 +1768,33 @@ int main(void)
         BeginDrawing();
         ClearBackground(BLACK);
 
+        int sx = shakeOffsetX;
+        int sy = shakeOffsetY;
+
         // --- Draw starfield ---
         for (int i = 0; i < STAR_TOTAL; i++)
         {
             unsigned char b = stars[i].brightness;
             Color sc = {b, b, b, 255};
+            float drawX = stars[i].x + sx;
+            float drawY = stars[i].y + sy;
             if (stars[i].size <= 1.0f)
-                DrawPixel((int)stars[i].x, (int)stars[i].y, sc);
+                DrawPixel((int)drawX, (int)drawY, sc);
             else
-                DrawCircleV((Vector2){stars[i].x, stars[i].y}, stars[i].size, sc);
+                DrawCircleV((Vector2){drawX, drawY}, stars[i].size, sc);
+        }
+
+                // --- Draw particles ---
+        for (int i = 0; i < MAX_PARTICLES; i++)
+        {
+            if (!particles[i].active)
+                continue;
+            int sz = (int)particles[i].size;
+            if (sz < 1)
+                sz = 1;
+            DrawRectangle((int)(particles[i].x + sx - sz / 2.0f),
+                          (int)(particles[i].y + sy - sz / 2.0f),
+                          sz, sz, particles[i].color);
         }
 
         // Draw HUD (score, lives, enemy count)
@@ -1441,9 +1806,34 @@ int main(void)
         }
 
         DrawText(TextFormat("ENEMIES: %d", enemyCount), 20, 80, 25, RED);
-        // Show pause hint during active gameplay
+        // Pause icon in top-right corner (two ▐▐ bars on a dark pill background)
         if (state == PLAYING || state == BOSS_FIGHT)
-            DrawText("[P] Pause", WINDOW_WIDTH - 120, 20, 18, DARKGRAY);
+        {
+            // Icon geometry
+            int iconX  = WINDOW_WIDTH - 52; // left edge of icon area
+            int iconY  = 12;
+            int barW   = 8;                  // width of each bar
+            int barH   = 22;                 // height of each bar
+            int barGap = 6;                  // gap between the two bars
+            // Semi-transparent pill background
+            DrawRectangleRounded((Rectangle){iconX - 6, iconY - 4,
+                                             barW * 2 + barGap + 12, barH + 8},
+                                 0.5f, 8, (Color){0, 0, 0, 130});
+            // Left bar
+            DrawRectangleRounded((Rectangle){(float)iconX, (float)iconY,
+                                             (float)barW, (float)barH},
+                                 0.3f, 4, (Color){200, 200, 200, 210});
+            // Right bar
+            DrawRectangleRounded((Rectangle){(float)(iconX + barW + barGap), (float)iconY,
+                                             (float)barW, (float)barH},
+                                 0.3f, 4, (Color){200, 200, 200, 210});
+            // "P" key hint — tiny label just below the icon, only visible on hover
+            Vector2 mouse = GetMousePosition();
+            Rectangle iconArea = {(float)(iconX - 6), (float)(iconY - 4),
+                                  (float)(barW * 2 + barGap + 12), (float)(barH + 8)};
+            if (CheckCollisionPointRec(mouse, iconArea))
+                DrawText("[P]", iconX - 2, iconY + barH + 6, 14, DARKGRAY);
+        }
 
         // Draw all living enemies
         for (int i = 0; i < numRows; i++)
@@ -1453,7 +1843,7 @@ int main(void)
                 if (enemies[i][j].type == ENEMY_DEAD)
                     continue;
 
-                Vector2 pos = {enemies[i][j].x, enemies[i][j].y};
+                Vector2 pos = {(float)(enemies[i][j].x + sx), (float)(enemies[i][j].y + sy)};
                 Color tint = WHITE;
 
                 // Hit flash override: RED tint for a few frames after taking damage
@@ -1490,7 +1880,8 @@ int main(void)
         }
 
         // Draw the player ship
-        destination.x = player.position.x;
+        destination.x = player.position.x + sx;
+        destination.y = player.position.y + sy;
         DrawTexturePro(spaceshipTex, source, destination, origin, 0, WHITE);
 
         // Draw player bullets
@@ -1499,8 +1890,8 @@ int main(void)
             if (playerBullets[i].active)
             {
                 DrawRectangle(
-                    (int)playerBullets[i].position.x,
-                    (int)playerBullets[i].position.y,
+                    (int)(playerBullets[i].position.x + sx),
+                    (int)(playerBullets[i].position.y + sy),
                     BULLET_WIDTH, BULLET_HEIGHT, WHITE);
             }
         }
@@ -1511,8 +1902,8 @@ int main(void)
             if (enemyBullets[i].active)
             {
                 DrawRectangle(
-                    (int)enemyBullets[i].position.x,
-                    (int)enemyBullets[i].position.y,
+                    (int)(enemyBullets[i].position.x + sx),
+                    (int)(enemyBullets[i].position.y + sy),
                     ENEMY_BULLET_WIDTH, ENEMY_BULLET_HEIGHT, RED);
             }
         }
@@ -1522,8 +1913,8 @@ int main(void)
         {
             float size = explosion.timer * EXPLOSION_SCALE;
             DrawCircle(
-                (int)(explosion.position.x + EXPLOSION_OFFSET),
-                (int)(explosion.position.y + EXPLOSION_OFFSET),
+                (int)(explosion.position.x + EXPLOSION_OFFSET + sx),
+                (int)(explosion.position.y + EXPLOSION_OFFSET + sy),
                 size, WHITE);
         }
 
@@ -1536,7 +1927,8 @@ int main(void)
             int barW = 400, barH = 16;
             int barX = WINDOW_WIDTH / 2 - barW / 2, barY = 440;
             float prog = loadTimer / LOAD_DURATION;
-            if (prog > 1.0f) prog = 1.0f;
+            if (prog > 1.0f)
+                prog = 1.0f;
             DrawRectangle(barX, barY, barW, barH, DARKGRAY);
             DrawRectangle(barX, barY, (int)(barW * prog), barH, GREEN);
             DrawRectangleLines(barX, barY, barW, barH, WHITE);
@@ -1545,13 +1937,16 @@ int main(void)
         }
 
         // --- Main menu draw ---
-        if (state == MAIN_MENU) DrawMenu(&mainMenu);
+        if (state == MAIN_MENU)
+            DrawMenu(&mainMenu);
 
         // --- Level select draw ---
-        if (state == LEVEL_SELECT) DrawMenu(&levelMenu);
+        if (state == LEVEL_SELECT)
+            DrawMenu(&levelMenu);
 
         // --- Pause menu (frozen game scene underneath + overlay) ---
-        if (state == PAUSED) DrawMenu(&pauseMenu);
+        if (state == PAUSED)
+            DrawMenu(&pauseMenu);
 
         // --- Leaderboard draw ---
         if (state == LEADERBOARD)
@@ -1568,8 +1963,8 @@ int main(void)
             {
                 Color c = (i < 3) ? rankC[i] : WHITE;
                 DrawText(TextFormat(" %d.   %-14s   %5d      %d",
-                         i + 1, leaderboard[i].name,
-                         leaderboard[i].score, leaderboard[i].level),
+                                    i + 1, leaderboard[i].name,
+                                    leaderboard[i].score, leaderboard[i].level),
                          WINDOW_WIDTH / 2 - 200, 280 + i * 48, 24, c);
             }
             int escW = MeasureText("ESC / ENTER to go back", 18);
@@ -1635,13 +2030,12 @@ int main(void)
         // --- Boss fight draw ---
         if (state == BOSS_FIGHT && boss.active)
         {
-            // Draw boss (procedural — purple rectangle with inner detail)
-            Color bossTint = (boss.hitFlashFrames > 0) ? RED : DARKPURPLE;
-            Color bossInner = (boss.hitFlashFrames > 0) ? MAROON : PURPLE;
-            DrawRectangleRounded((Rectangle){boss.x, boss.y, BOSS_WIDTH, BOSS_HEIGHT}, 0.2f, 8, bossTint);
-            DrawRectangleRounded((Rectangle){boss.x + 15, boss.y + 10, BOSS_WIDTH - 30, BOSS_HEIGHT - 20}, 0.3f, 8, bossInner);
-            // Core "eye"
-            DrawCircle((int)(boss.x + BOSS_WIDTH / 2), (int)(boss.y + BOSS_HEIGHT / 2), 12, (boss.hitFlashFrames > 0) ? ORANGE : PINK);
+            // Draw boss sprite (boss.png), scaled to BOSS_WIDTH x BOSS_HEIGHT
+            // Apply RED tint on hit-flash frames, otherwise draw normally
+            Color bossTint = (boss.hitFlashFrames > 0) ? RED : WHITE;
+            bossTexDst.x = boss.x + sx;
+            bossTexDst.y = boss.y + sy;
+            DrawTexturePro(bossTex, bossTexSrc, bossTexDst, bossTexOrigin, 0.0f, bossTint);
 
             // Boss health bar — full width at screen top
             float barW = (float)(WINDOW_WIDTH - 40);
@@ -1659,7 +2053,7 @@ int main(void)
             for (int i = 0; i < MAX_BOSS_BULLETS; i++)
             {
                 if (bossBullets[i].active)
-                    DrawCircle((int)bossBullets[i].x, (int)bossBullets[i].y, 5, ORANGE);
+                    DrawCircle((int)(bossBullets[i].x + sx), (int)(bossBullets[i].y + sy), 5, ORANGE);
             }
         }
 
@@ -1678,6 +2072,13 @@ int main(void)
     }
 
     // Clean up
+    UnloadMusicStream(bgMusic);
+    UnloadSound(sndShoot);
+    UnloadSound(sndEnemyDie);
+    UnloadSound(sndBossHit);
+    UnloadSound(sndBossRage);
+    UnloadSound(sndEnemyMove);
+    CloseAudioDevice();
     UnloadTexture(spaceshipTex);
     UnloadTexture(dummy);
     UnloadTexture(basicTex);
@@ -1685,6 +2086,7 @@ int main(void)
     UnloadTexture(rapidTex);
     UnloadTexture(tank);
     UnloadTexture(heartTex);
+    UnloadTexture(bossTex);
 
     CloseWindow();
     return 0;
