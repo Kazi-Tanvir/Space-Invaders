@@ -6,7 +6,6 @@
 // Window settings
 #define WINDOW_WIDTH 1000
 #define WINDOW_HEIGHT 800
-#define BG_COLOR (Color){8, 10, 22, 255}
 
 // Starfield settings
 #define STAR_COUNT_FAR 150
@@ -33,7 +32,7 @@
 #define BULLET_SPEED 1000.0f
 #define BULLET_WIDTH 5
 #define BULLET_HEIGHT 15
-#define PLAYER_SHOOT_COOLDOWN 0.3f
+#define PLAYER_SHOOT_COOLDOWN 0.2f
 
 // Enemy matrix layout
 #define MAX_ENEMY_ROWS 8 // max rows any level can have (sized for level 2's 7 rows)
@@ -47,10 +46,6 @@
 #define ENEMY_BOUND_RIGHT (WINDOW_WIDTH - ENEMY_HITBOX - 10)
 #define ENEMY_DROP_STEP 20.0f
 #define ENEMY_DROP_INTERVAL 8.0f // seconds between Y-drops
-
-// Enemy sprite animation
-#define ENEMY_ANIM_RATE  0.20f  // seconds per animation frame
-#define ENEMY_MAX_FRAMES 2      // max frames stored per enemy type
 
 // Level system
 #define NUM_LEVELS 3
@@ -79,7 +74,7 @@
 // Boss settings
 #define BOSS_WIDTH 300
 #define BOSS_HEIGHT 300
-#define BOSS_MAX_HEALTH 100
+#define BOSS_MAX_HEALTH 50
 #define BOSS_SPEED 60.0f
 #define BOSS_START_Y 60
 #define MAX_BOSS_BULLETS 150
@@ -108,11 +103,6 @@
 #define BOSS_HIT_Y_OFFSET  (BOSS_HEIGHT * 0.08f)  // small top gap (antenna space)
 #define BOSS_HIT_WIDTH     (BOSS_WIDTH  - BOSS_HIT_X_MARGIN * 2)
 #define BOSS_HIT_HEIGHT    (BOSS_HEIGHT * 0.50f)   // only the solid body, no legs
-
-// Boss sprite animation
-#define BOSS_FRAMES_NORMAL 5          // normal mode animation frames
-#define BOSS_FRAMES_RAGE   4          // rage mode animation frames
-#define BOSS_ANIM_RATE     0.15f      // seconds per frame
 
 // Score values per enemy type
 #define SCORE_DUMMY 5
@@ -172,9 +162,6 @@ typedef struct Enemy
     int maxHealth;
     int hitFlashFrames; // >0 means draw with RED tint
     bool active;
-    // Sprite animation
-    float animTimer;    // time accumulator for frame cycling
-    int   currentFrame; // current frame index
 } Enemy;
 
 typedef enum GameState
@@ -188,9 +175,9 @@ typedef enum GameState
     GAME_LOST,
     BOSS_FIGHT,
     LEADERBOARD, // view top-5 scores
-    NAME_ENTRY,  // type name after new high score
+    NAME_ENTRY, 
     HOW_TO_PLAY,
-    CREDITS,
+    CREDITS,     
 } GameState;
 
 typedef struct Explosion
@@ -238,15 +225,12 @@ typedef struct Boss
     int   ragePhase;     // 0=normal,1=dash-to-mid,2=raging,3=returning
     float rageTimer;     // time spent at mid-screen during rage
     bool  rageTriggered; // one-shot flag
-    // Sprite animation
-    float animTimer;     // accumulates dt for frame cycling
-    int   currentFrame;  // current frame index (bounded by active frame set)
 } Boss;
 
 // Loading screen
 #define LOAD_DURATION 2.5f
 
-// Menu system (supports up to 6 items)
+// Menu system (supports up to 5 items)
 #define MAX_MENU_ITEMS 6
 
 typedef struct Menu
@@ -287,7 +271,7 @@ static const LevelConfig levels[NUM_LEVELS] = {
     // Level 2: 7 rows, all 5 enemy types, 1.4x speed
     {
         .numRows = 6,
-        .rowTypes = {ENEMY_RAPID, ENEMY_TANK, ENEMY_ZIGZAG, ENEMY_BASIC,
+        .rowTypes = {ENEMY_TANK, ENEMY_RAPID, ENEMY_ZIGZAG, ENEMY_ZIGZAG,
                      ENEMY_BASIC, ENEMY_DUMMY},
         .speedMultiplier = 1.4f,
     },
@@ -333,9 +317,6 @@ static void InitEnemy(Enemy *e, int row, int col, int type, float speedMul)
     e->shootTimer = (float)GetRandomValue(0, 200) / 100.0f; // stagger initial shots
     e->hitFlashFrames = 0;
     e->active = true;
-    // Stagger animation so enemies in the grid don't all flash in sync
-    e->animTimer    = (float)GetRandomValue(0, (int)(ENEMY_ANIM_RATE * 100)) / 100.0f;
-    e->currentFrame = GetRandomValue(0, 1);
     switch (type)
     {
     case ENEMY_DUMMY:
@@ -429,8 +410,6 @@ static void ResetBoss(Boss *b)
     b->ragePhase = 0;
     b->rageTimer = 0.0f;
     b->rageTriggered = false;
-    b->animTimer    = 0.0f;
-    b->currentFrame = 0;
 }
 
 static void SpawnParticles(Particle particles[], float px, float py, int count)
@@ -777,29 +756,6 @@ static bool LoadGame(const char *path, int *stateVal, int *level, int *score,
     return true;
 }
 
-// Helper to load texture while extracting visible content rectangle (trims transparent margins)
-static Texture2D LoadTrimmedSprite(const char *path, Rectangle *outSrc)
-{
-    Image img = LoadImage(path);
-    if (!img.data)
-    {
-        *outSrc = (Rectangle){0, 0, 0, 0};
-        return (Texture2D){0};
-    }
-    // Detect tight bounding box of visible pixels (alpha threshold 0.15)
-    *outSrc = GetImageAlphaBorder(img, 0.15f);
-    if (outSrc->width <= 0 || outSrc->height <= 0)
-    {
-        outSrc->x = 0;
-        outSrc->y = 0;
-        outSrc->width = (float)img.width;
-        outSrc->height = (float)img.height;
-    }
-    Texture2D tex = LoadTextureFromImage(img);
-    UnloadImage(img);
-    return tex;
-}
-
 //  Main
 
 int main(void)
@@ -840,54 +796,19 @@ int main(void)
 
     // Load all textures
     Texture2D spaceshipTex = LoadTexture("resources/spaceship.png");
-    Texture2D heartTex     = LoadTexture("resources/heart.png");
+    Texture2D dummy = LoadTexture("resources/dummy.png");     // ENEMY_DUMMY
+    Texture2D basicTex = LoadTexture("resources/dummy.png");  // ENEMY_BASIC (same sprite, cyan tint)
+    Texture2D zigzag = LoadTexture("resources/zigzag.png");   // ENEMY_ZIGZAG
+    Texture2D rapidTex = LoadTexture("resources/zigzag.png"); // ENEMY_RAPID (same sprite, yellow tint)
+    Texture2D tank = LoadTexture("resources/tank.png");       // ENEMY_TANK
+    Texture2D heartTex = LoadTexture("resources/heart.png");
+    Texture2D bossTex = LoadTexture("resources/boss.png");    // Level 3 boss sprite
+    // Source rect covers the full boss texture; dest rect sizes it to BOSS_WIDTH x BOSS_HEIGHT
     Texture2D loadingBackground = LoadTexture("resources/loading.png");
-    Texture2D menuBackground    = LoadTexture("resources/menu.png");
-
-    // Enemy frame arrays — indexed by EnemyType enum value (slot 0 = ENEMY_DEAD, unused)
-    // frameCount[t] = number of valid animation frames for type t
-    Texture2D enemyFrames[6][ENEMY_MAX_FRAMES]  = {0};
-    Rectangle enemySrcRect[6][ENEMY_MAX_FRAMES] = {0};
-    int       enemyFrameCount[6]                = {0};
-
-    enemyFrames[ENEMY_DUMMY][0] = LoadTrimmedSprite("resources/dummy_frame1.png", &enemySrcRect[ENEMY_DUMMY][0]);
-    enemyFrames[ENEMY_DUMMY][1] = LoadTrimmedSprite("resources/dummy_frame2.png", &enemySrcRect[ENEMY_DUMMY][1]);
-    enemyFrameCount[ENEMY_DUMMY] = 2;
-
-    enemyFrames[ENEMY_BASIC][0] = LoadTrimmedSprite("resources/basic_frame1.png", &enemySrcRect[ENEMY_BASIC][0]);
-    enemyFrames[ENEMY_BASIC][1] = LoadTrimmedSprite("resources/basic_frame2.png", &enemySrcRect[ENEMY_BASIC][1]);
-    enemyFrameCount[ENEMY_BASIC] = 2;
-
-    enemyFrames[ENEMY_ZIGZAG][0] = LoadTrimmedSprite("resources/zigzag_frame1.png", &enemySrcRect[ENEMY_ZIGZAG][0]);
-    enemyFrames[ENEMY_ZIGZAG][1] = LoadTrimmedSprite("resources/zigzag_frame2.png", &enemySrcRect[ENEMY_ZIGZAG][1]);
-    enemyFrameCount[ENEMY_ZIGZAG] = 2;
-
-    enemyFrames[ENEMY_TANK][0] = LoadTrimmedSprite("resources/tank_frame1.png", &enemySrcRect[ENEMY_TANK][0]);
-    enemyFrames[ENEMY_TANK][1] = LoadTrimmedSprite("resources/tank_frame2.png", &enemySrcRect[ENEMY_TANK][1]);
-    enemyFrameCount[ENEMY_TANK] = 2;
-
-    enemyFrames[ENEMY_RAPID][0] = LoadTrimmedSprite("resources/rapid_frame1.png", &enemySrcRect[ENEMY_RAPID][0]);
-    enemyFrames[ENEMY_RAPID][1] = LoadTrimmedSprite("resources/rapid_frame2.png", &enemySrcRect[ENEMY_RAPID][1]);
-    enemyFrameCount[ENEMY_RAPID] = 2;
-
-    // Boss animation frame arrays
-    Texture2D bossFramesNormal[BOSS_FRAMES_NORMAL];
-    Rectangle bossSrcRectNormal[BOSS_FRAMES_NORMAL];
-    bossFramesNormal[0] = LoadTrimmedSprite("resources/boss_frame1.png", &bossSrcRectNormal[0]);
-    bossFramesNormal[1] = LoadTrimmedSprite("resources/boss_frame2.png", &bossSrcRectNormal[1]);
-    bossFramesNormal[2] = LoadTrimmedSprite("resources/boss_frame3.png", &bossSrcRectNormal[2]);
-    bossFramesNormal[3] = LoadTrimmedSprite("resources/boss_frame4.png", &bossSrcRectNormal[3]);
-    bossFramesNormal[4] = LoadTrimmedSprite("resources/boss_frame5.png", &bossSrcRectNormal[4]);
-
-    Texture2D bossFramesRage[BOSS_FRAMES_RAGE];
-    Rectangle bossSrcRectRage[BOSS_FRAMES_RAGE];
-    bossFramesRage[0] = LoadTrimmedSprite("resources/boss_rage_frame1.png", &bossSrcRectRage[0]);
-    bossFramesRage[1] = LoadTrimmedSprite("resources/boss_rage_frame2.png", &bossSrcRectRage[1]);
-    bossFramesRage[2] = LoadTrimmedSprite("resources/boss_rage_frame3.png", &bossSrcRectRage[2]);
-    if (FileExists("resources/boss_rage_frame4.png"))
-        bossFramesRage[3] = LoadTrimmedSprite("resources/boss_rage_frame4.png", &bossSrcRectRage[3]);
-    else
-        bossFramesRage[3] = LoadTrimmedSprite("resources/boss-rage_frame4.png", &bossSrcRectRage[3]);
+    Texture2D menuBackground = LoadTexture("resources/menu.png");
+    Rectangle bossTexSrc = {0, 0, (float)bossTex.width, (float)bossTex.height};
+    Rectangle bossTexDst = {0, 0, BOSS_WIDTH, BOSS_HEIGHT}; // x/y set each frame
+    Vector2   bossTexOrigin = {0, 0};
 
     // Load sound effects
     Sound sndShoot     = LoadSound("resources/shoot.wav");      // player fires
@@ -951,7 +872,6 @@ int main(void)
     GameState state = LOADING; // always starts with loading screen
     float loadTimer = 0.0f;
     bool shouldExit = false;
-    bool isMuted = false;          // M key toggles mute; starts unmuted
     GameState returnState = MAIN_MENU; // where LEADERBOARD goes back to
     GameState pausedFrom = PLAYING;    // PLAYING or BOSS_FIGHT before pause
     float autoSaveTimer = 0.0f;        // periodic auto-save every 10 s during gameplay
@@ -966,13 +886,14 @@ int main(void)
     char nameBuffer[MAX_NAME_LEN] = {0};
     int nameLen = 0;
 
-    // Menu definitions
+//main menu 
     Menu mainMenu = {
         .title = "SPACE INVADERS",
         .items = {"New Game", "Resume Game", "Leaderboard", "How To Play", "Credits", "Exit"},
         .count = 6,
         .selected = 0,
         .enabled = {true, false, true, true, true, true}};
+
     Menu levelMenu = {
         .title = "SELECT LEVEL",
         .items = {"Level 1  -  Easy", "Level 2  -  Hard",
@@ -991,13 +912,6 @@ int main(void)
     bool mainMenuInteracted = false;
     bool mainMenuMouseInit = false;
     Vector2 mainMenuLastMouse = {0, 0};
-
-    // Scroll state for HOW_TO_PLAY and CREDITS
-    float howToPlayScrollY = 0.0f;
-    float creditsScrollY = 0.0f;
-    bool scrollbarDragging = false;
-    float scrollbarDragOffsetY = 0.0f;
-
     for (int i = 0; i < MAX_ENEMY_ROWS; i++)
         for (int j = 0; j < ENEMY_COLS; j++)
             enemies[i][j].type = ENEMY_DEAD;
@@ -1015,18 +929,11 @@ int main(void)
         // Pump the looping background music every frame (required by raylib)
         UpdateMusicStream(bgMusic);
 
-        // --- Cursor visibility: hidden during gameplay, visible everywhere else ---
+                // --- Cursor visibility: hidden during gameplay, visible everywhere else ---
         if (state == PLAYING || state == BOSS_FIGHT)
             HideCursor();
         else
             ShowCursor();
-
-        // --- M key: toggle mute (works in all states) ---
-        if (IsKeyPressed(KEY_M))
-        {
-            isMuted = !isMuted;
-            SetMasterVolume(isMuted ? 0.0f : 1.0f);
-        }
 
         // --- Update starfield (always runs) ---
         for (int i = 0; i < STAR_TOTAL; i++)
@@ -1075,6 +982,8 @@ int main(void)
         // --- Loading screen ---
         if (state == LOADING)
         {
+
+
             loadTimer += dt;
             if (loadTimer >= LOAD_DURATION)
                 state = MAIN_MENU;
@@ -1137,21 +1046,12 @@ int main(void)
                 state = LEADERBOARD;
             }
             else if (mchoice == 3)
-            {
-                howToPlayScrollY = 0.0f;
-                scrollbarDragging = false;
                 state = HOW_TO_PLAY;
-            }
             else if (mchoice == 4)
-            {
-                creditsScrollY = 0.0f;
-                scrollbarDragging = false;
                 state = CREDITS;
-            }
             else if (mchoice == 5)
                 shouldExit = true;
         }
-
         // --- Level select ---
         else if (state == LEVEL_SELECT)
         {
@@ -1208,7 +1108,7 @@ int main(void)
             else
                 state = MAIN_MENU;
         }
-        else if (state == GAME_LOST && IsKeyPressed(KEY_ENTER))
+                   else if (state == GAME_LOST && IsKeyPressed(KEY_ENTER))
         {
             remove("savegame.txt");
             if (IsHighScore(leaderboard, leaderCount, score))
@@ -1249,9 +1149,9 @@ int main(void)
         }
 
         // --- Leaderboard view ---
-        else if (state == LEADERBOARD)
+else if (state == LEADERBOARD)
         {
-            bool goBack = IsKeyPressed(KEY_BACKSPACE) || IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_ENTER);
+            bool goBack = IsKeyPressed(KEY_BACKSPACE);
             if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) &&
                 CheckCollisionPointRec(GetMousePosition(), (Rectangle){20, 20, 50, 50}))
                 goBack = true;
@@ -1259,159 +1159,31 @@ int main(void)
                 state = returnState;
         }
 
-        // --- How to play screen (scrollable) ---
-        else if (state == HOW_TO_PLAY)
+
+                // --- How to play screen ---
+   else if (state == HOW_TO_PLAY)
         {
-            float maxScroll = 320.0f;
-            float wheel = GetMouseWheelMove();
-            if (wheel != 0.0f)
-                howToPlayScrollY -= wheel * 45.0f;
-
-            if (IsKeyDown(KEY_UP))
-                howToPlayScrollY -= 400.0f * dt;
-            if (IsKeyDown(KEY_DOWN))
-                howToPlayScrollY += 400.0f * dt;
-            if (IsKeyPressed(KEY_PAGE_UP))
-                howToPlayScrollY -= 250.0f;
-            if (IsKeyPressed(KEY_PAGE_DOWN))
-                howToPlayScrollY += 250.0f;
-            if (IsKeyPressed(KEY_HOME))
-                howToPlayScrollY = 0.0f;
-            if (IsKeyPressed(KEY_END))
-                howToPlayScrollY = maxScroll;
-
-            // Scrollbar dragging logic
-            int vpY = 106;
-            int vpH = WINDOW_HEIGHT - 166;
-            float thumbRatio = (float)vpH / (vpH + maxScroll);
-            float thumbH = vpH * thumbRatio;
-            if (thumbH < 40.0f) thumbH = 40.0f;
-            float thumbY = vpY + (howToPlayScrollY / maxScroll) * (vpH - thumbH);
-            Rectangle thumbRect = { WINDOW_WIDTH - 24, thumbY, 10, thumbH };
-            Rectangle trackRect = { WINDOW_WIDTH - 24, (float)vpY, 10, (float)vpH };
-
-            Vector2 mouse = GetMousePosition();
-            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
-            {
-                if (CheckCollisionPointRec(mouse, thumbRect))
-                {
-                    scrollbarDragging = true;
-                    scrollbarDragOffsetY = mouse.y - thumbY;
-                }
-                else if (CheckCollisionPointRec(mouse, trackRect))
-                {
-                    float clickRelY = mouse.y - vpY - thumbH / 2.0f;
-                    howToPlayScrollY = (clickRelY / (vpH - thumbH)) * maxScroll;
-                    scrollbarDragging = true;
-                    scrollbarDragOffsetY = thumbH / 2.0f;
-                }
-            }
-            if (scrollbarDragging)
-            {
-                if (IsMouseButtonDown(MOUSE_BUTTON_LEFT))
-                {
-                    float targetThumbY = mouse.y - vpY - scrollbarDragOffsetY;
-                    float range = vpH - thumbH;
-                    if (range > 0.0f)
-                        howToPlayScrollY = (targetThumbY / range) * maxScroll;
-                }
-                else
-                {
-                    scrollbarDragging = false;
-                }
-            }
-
-            // Clamp bounds
-            if (howToPlayScrollY < 0.0f) howToPlayScrollY = 0.0f;
-            if (howToPlayScrollY > maxScroll) howToPlayScrollY = maxScroll;
-
-            bool goBack = IsKeyPressed(KEY_BACKSPACE) || IsKeyPressed(KEY_ESCAPE);
+            bool goBack = IsKeyPressed(KEY_BACKSPACE);
             if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) &&
-                CheckCollisionPointRec(mouse, (Rectangle){20, 20, 50, 50}))
+                CheckCollisionPointRec(GetMousePosition(), (Rectangle){20, 20, 50, 50}))
                 goBack = true;
             if (goBack)
             {
                 state = MAIN_MENU;
                 mainMenu.selected = 0;
-                scrollbarDragging = false;
             }
         }
-
-        // --- Credits screen (scrollable) ---
-        else if (state == CREDITS)
+                // --- Credits screen ---
+      else if (state == CREDITS)
         {
-            float maxScroll = 340.0f;
-            float wheel = GetMouseWheelMove();
-            if (wheel != 0.0f)
-                creditsScrollY -= wheel * 45.0f;
-
-            if (IsKeyDown(KEY_UP))
-                creditsScrollY -= 400.0f * dt;
-            if (IsKeyDown(KEY_DOWN))
-                creditsScrollY += 400.0f * dt;
-            if (IsKeyPressed(KEY_PAGE_UP))
-                creditsScrollY -= 250.0f;
-            if (IsKeyPressed(KEY_PAGE_DOWN))
-                creditsScrollY += 250.0f;
-            if (IsKeyPressed(KEY_HOME))
-                creditsScrollY = 0.0f;
-            if (IsKeyPressed(KEY_END))
-                creditsScrollY = maxScroll;
-
-            // Scrollbar dragging logic
-            int vpY = 110;
-            int vpH = WINDOW_HEIGHT - 170;
-            float thumbRatio = (float)vpH / (vpH + maxScroll);
-            float thumbH = vpH * thumbRatio;
-            if (thumbH < 40.0f) thumbH = 40.0f;
-            float thumbY = vpY + (creditsScrollY / maxScroll) * (vpH - thumbH);
-            Rectangle thumbRect = { WINDOW_WIDTH - 24, thumbY, 10, thumbH };
-            Rectangle trackRect = { WINDOW_WIDTH - 24, (float)vpY, 10, (float)vpH };
-
-            Vector2 mouse = GetMousePosition();
-            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
-            {
-                if (CheckCollisionPointRec(mouse, thumbRect))
-                {
-                    scrollbarDragging = true;
-                    scrollbarDragOffsetY = mouse.y - thumbY;
-                }
-                else if (CheckCollisionPointRec(mouse, trackRect))
-                {
-                    float clickRelY = mouse.y - vpY - thumbH / 2.0f;
-                    creditsScrollY = (clickRelY / (vpH - thumbH)) * maxScroll;
-                    scrollbarDragging = true;
-                    scrollbarDragOffsetY = thumbH / 2.0f;
-                }
-            }
-            if (scrollbarDragging)
-            {
-                if (IsMouseButtonDown(MOUSE_BUTTON_LEFT))
-                {
-                    float targetThumbY = mouse.y - vpY - scrollbarDragOffsetY;
-                    float range = vpH - thumbH;
-                    if (range > 0.0f)
-                        creditsScrollY = (targetThumbY / range) * maxScroll;
-                }
-                else
-                {
-                    scrollbarDragging = false;
-                }
-            }
-
-            // Clamp bounds
-            if (creditsScrollY < 0.0f) creditsScrollY = 0.0f;
-            if (creditsScrollY > maxScroll) creditsScrollY = maxScroll;
-
-            bool goBack = IsKeyPressed(KEY_BACKSPACE) || IsKeyPressed(KEY_ESCAPE);
+            bool goBack = IsKeyPressed(KEY_BACKSPACE);
             if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) &&
-                CheckCollisionPointRec(mouse, (Rectangle){20, 20, 50, 50}))
+                CheckCollisionPointRec(GetMousePosition(), (Rectangle){20, 20, 50, 50}))
                 goBack = true;
             if (goBack)
             {
                 state = MAIN_MENU;
                 mainMenu.selected = 0;
-                scrollbarDragging = false;
             }
         }
 
@@ -1468,7 +1240,6 @@ int main(void)
                          &boss, bossBullets);
                 autoSaveTimer = 0.0f;
             }
-
             // --- Clamp OS cursor to window bounds so it can't drift onto the desktop ---
             {
                 Vector2 mp = GetMousePosition();
@@ -1481,6 +1252,19 @@ int main(void)
                     SetMousePosition((int)mp.x, (int)mp.y);
             }
 
+            // --- Player movement ---
+            // Mouse: snap to cursor only when mouse has actually moved this frame.
+            // When mouse is stationary, keyboard has full control (no conflict).
+            {
+                static int lastMouseX = -1;
+                int curMouseX = GetMouseX();
+                if (IsCursorOnScreen() && curMouseX != lastMouseX)
+                {
+                    player.position.x = (float)curMouseX - player.width / 2.0f;
+                    lastMouseX = curMouseX;
+                }
+            }
+  
             // --- Player movement ---
             // Mouse: snap to cursor only when mouse has actually moved this frame.
             // When mouse is stationary, keyboard has full control (no conflict).
@@ -1597,17 +1381,6 @@ int main(void)
                         // Decrement hit flash
                         if (enemies[row][col].hitFlashFrames > 0)
                             enemies[row][col].hitFlashFrames--;
-
-                        // Advance sprite animation frame
-                        enemies[row][col].animTimer += dt;
-                        if (enemies[row][col].animTimer >= ENEMY_ANIM_RATE)
-                        {
-                            enemies[row][col].animTimer -= ENEMY_ANIM_RATE;
-                            int fc = enemyFrameCount[enemies[row][col].type];
-                            if (fc > 1)
-                                enemies[row][col].currentFrame =
-                                    (enemies[row][col].currentFrame + 1) % fc;
-                        }
 
                         // Zigzag: apply triangle wave Y offset relative to baseY
                         if (enemies[row][col].type == ENEMY_ZIGZAG)
@@ -1872,15 +1645,6 @@ int main(void)
             if (boss.hitFlashFrames > 0)
                 boss.hitFlashFrames--;
 
-            // --- Boss sprite animation ---
-            boss.animTimer += dt;
-            if (boss.animTimer >= BOSS_ANIM_RATE)
-            {
-                boss.animTimer -= BOSS_ANIM_RATE;
-                int bossFrameCount = (boss.ragePhase != 0) ? BOSS_FRAMES_RAGE : BOSS_FRAMES_NORMAL;
-                boss.currentFrame = (boss.currentFrame + 1) % bossFrameCount;
-            }
-
             // --- Attack phase cycling ---
             boss.phaseTimer += dt;
             boss.shootTimer -= dt;
@@ -2013,7 +1777,7 @@ int main(void)
                     playerBullets[i].active = false;
                     boss.health--;
                     boss.hitFlashFrames = 5;
-                    score += 10;
+                    score += 10;  // was 2 — boss fight now worth much more
                     PlaySound(sndBossHit); // ← deep thud
 
                     if (boss.health <= 0)
@@ -2024,7 +1788,7 @@ int main(void)
                                        boss.y + BOSS_HEIGHT / 2.0f,
                                        15);
                         boss.active = false;
-                        score += 200;
+                        score += 200; // was 100 — bigger bonus for defeating boss
                         state = GAME_WON;
                     }
 
@@ -2102,7 +1866,7 @@ int main(void)
             if (boss.health <= 0)
             {
                 boss.active = false;
-                score += 200; // bonus for defeating boss
+                score += 100; // bonus for defeating boss
                 state = GAME_WON;
             }
         }
@@ -2111,7 +1875,7 @@ int main(void)
 
         // Draw everything
         BeginDrawing();
-        ClearBackground(BG_COLOR);
+        ClearBackground(BLACK);
 
         int sx = shakeOffsetX;
         int sy = shakeOffsetY;
@@ -2155,8 +1919,7 @@ int main(void)
 
             DrawText(TextFormat("ENEMIES: %d", enemyCount), 20, 80, 25, RED);
         }
-
-        // --- High score display (top-right, left of the mute & pause icons) ---
+        // --- High score display (top-right, left of the pause icon) ---
         // Stays visible during gameplay AND on the win/lose screen after it.
         // Updates live: shows whichever is bigger, the saved #1 or your current score.
         if (state == PLAYING || state == BOSS_FIGHT || state == GAME_WON || state == GAME_LOST)
@@ -2165,11 +1928,10 @@ int main(void)
             int hiScore = (score > savedHi) ? score : savedHi;
             const char *hiText = TextFormat("HI  %d", hiScore);
             int hiW = MeasureText(hiText, 22);
-            int hiX = WINDOW_WIDTH - 106 - 15 - hiW;
+            int hiX = WINDOW_WIDTH - 52 - 6 - 15 - hiW;
             int hiY = 18;
             DrawText(hiText, hiX, hiY, 22, GOLD);
         }
-
         // Pause icon in top-right corner (two ▐▐ bars on a dark pill background)
         if (state == PLAYING || state == BOSS_FIGHT)
         {
@@ -2199,50 +1961,6 @@ int main(void)
                 DrawText("[P]", iconX - 2, iconY + barH + 6, 14, DARKGRAY);
         }
 
-        // --- Mute icon: drawn every frame in every state (top-right, left of pause icon) ---
-        {
-            int muteX = WINDOW_WIDTH - 106; // left edge; sits left of the pause icon at -52
-            int muteY = 12;
-            int icoW  = 30;  // bounding box width
-            int icoH  = 22;  // bounding box height
-            // Semi-transparent pill background
-            DrawRectangleRounded((Rectangle){(float)(muteX - 5), (float)(muteY - 4),
-                                             (float)(icoW + 10), (float)(icoH + 8)},
-                                 0.5f, 8, (Color){0, 0, 0, 130});
-
-            Color speakerCol = isMuted ? (Color){220, 60, 60, 220} : (Color){200, 200, 200, 210};
-
-            // Speaker body: small filled rect (left side of speaker)
-            DrawRectangle(muteX, muteY + 7, 6, 8, speakerCol);
-            // Speaker cone: triangle pointing right
-            DrawTriangle(
-                (Vector2){(float)(muteX + 6),  (float)(muteY + 4)},
-                (Vector2){(float)(muteX + 6),  (float)(muteY + 18)},
-                (Vector2){(float)(muteX + 14), (float)(muteY + 11)},
-                speakerCol);
-
-            if (!isMuted)
-            {
-                // Sound waves: two partial circle outlines
-                DrawCircleLines(muteX + 6, muteY + 11, 7,  (Color){200, 200, 200, 170});
-                DrawCircleLines(muteX + 6, muteY + 11, 11, (Color){200, 200, 200, 110});
-            }
-            else
-            {
-                // Muted: diagonal strike-through across the icon
-                DrawLineEx((Vector2){(float)(muteX + 16), (float)(muteY + 3)},
-                           (Vector2){(float)(muteX + 2),  (float)(muteY + 19)},
-                           2.5f, (Color){255, 60, 60, 230});
-            }
-
-            // [M] key hint on hover
-            Vector2 mMouse = GetMousePosition();
-            Rectangle muteArea = {(float)(muteX - 5), (float)(muteY - 4),
-                                   (float)(icoW + 10), (float)(icoH + 8)};
-            if (CheckCollisionPointRec(mMouse, muteArea))
-                DrawText("[M]", muteX - 2, muteY + icoH + 6, 14, DARKGRAY);
-        }
-
         // Draw all living enemies
         for (int i = 0; i < numRows; i++)
         {
@@ -2251,45 +1969,39 @@ int main(void)
                 if (enemies[i][j].type == ENEMY_DEAD)
                     continue;
 
-                EnemyType etype = enemies[i][j].type;
-                int frame       = enemies[i][j].currentFrame;
-                bool flashing   = (enemies[i][j].hitFlashFrames > 0);
-                Vector2 pos     = {(float)(enemies[i][j].x + sx), (float)(enemies[i][j].y + sy)};
+                Vector2 pos = {(float)(enemies[i][j].x + sx), (float)(enemies[i][j].y + sy)};
+                Color tint = WHITE;
 
-                // Per-type draw properties: target visual width, tint
-                float targetW = 44.0f;
-                Color tint    = flashing ? RED : WHITE;
+                // Hit flash override: RED tint for a few frames after taking damage
+                bool flashing = (enemies[i][j].hitFlashFrames > 0);
 
-                switch (etype)
+                switch (enemies[i][j].type)
                 {
+                case ENEMY_DUMMY:
+                    DrawTextureEx(dummy, pos, 0, .37f, flashing ? RED : WHITE);
+                    break;
                 case ENEMY_BASIC:
-                    targetW = 44.0f;
-                    tint    = flashing ? RED : SKYBLUE;
+                    DrawTextureEx(basicTex, (Vector2){pos.x, pos.y}, 0, .37f, flashing ? RED : SKYBLUE);
                     break;
                 case ENEMY_ZIGZAG:
-                    // Frame 1 has spread wings (wide aspect ratio); use wider targetW so body size matches Frame 0
-                    targetW = (frame == 1) ? 52.0f : 40.0f;
+                    DrawTextureEx(zigzag, (Vector2){pos.x - 5, pos.y}, 0, 0.35f, flashing ? RED : WHITE);
                     break;
                 case ENEMY_TANK:
-                    targetW = 48.0f;
+                    DrawTextureEx(tank, (Vector2){pos.x - 12, pos.y}, 0, 0.4f, flashing ? RED : WHITE);
+                    // Draw health bar above tank
+                    if (enemies[i][j].health < enemies[i][j].maxHealth)
+                    {
+                        float barWidth = 40.0f;
+                        float barHeight = 4.0f;
+                        float healthRatio = (float)enemies[i][j].health / (float)enemies[i][j].maxHealth;
+                        DrawRectangle((int)pos.x + 5, (int)pos.y - 8, (int)barWidth, (int)barHeight, DARKGRAY);
+                        DrawRectangle((int)pos.x + 5, (int)pos.y - 8, (int)(barWidth * healthRatio), (int)barHeight, RED);
+                    }
                     break;
                 case ENEMY_RAPID:
-                    // Frame 1 has raised arms and outward antennae; use wider targetW so central body matches Frame 0
-                    targetW = (frame == 1) ? 46.0f : 36.0f;
-                    tint    = flashing ? RED : YELLOW;
+                    DrawTextureEx(rapidTex, (Vector2){pos.x - 5, pos.y}, 0, 0.35f, flashing ? RED : YELLOW);
                     break;
-                default: break;
                 }
-
-                Rectangle src = enemySrcRect[etype][frame];
-                float aspect  = (src.width > 0) ? (src.height / src.width) : 1.0f;
-                float dstW    = targetW;
-                float dstH    = targetW * aspect;
-                float dstX    = pos.x + (ENEMY_HITBOX - dstW) * 0.5f;
-                float dstY    = pos.y + (ENEMY_HITBOX - dstH) * 0.5f;
-                Rectangle dst = {dstX, dstY, dstW, dstH};
-
-                DrawTexturePro(enemyFrames[etype][frame], src, dst, (Vector2){0, 0}, 0.0f, tint);
             }
         }
 
@@ -2332,13 +2044,15 @@ int main(void)
                 size, WHITE);
         }
 
-        // --- Loading screen draw ---
+         // --- Loading screen draw ---
         if (state == LOADING)
         {
-            DrawTexturePro(loadingBackground,
-                (Rectangle){0, 0, (float)loadingBackground.width, (float)loadingBackground.height},
-                (Rectangle){0, 0, WINDOW_WIDTH, WINDOW_HEIGHT},
-                (Vector2){0, 0}, 0, WHITE);
+            float scale = (float)WINDOW_WIDTH / loadingBackground.width;
+            float sourceHeight = WINDOW_HEIGHT / scale;
+    DrawTexturePro(loadingBackground,
+    (Rectangle){0, 0, (float)loadingBackground.width, (float)loadingBackground.height},
+    (Rectangle){0, 0, WINDOW_WIDTH, WINDOW_HEIGHT},
+    (Vector2){0, 0}, 0, WHITE);
 
             // Light veil only at the very bottom, so the art stays fully visible
             DrawRectangleGradientV(0, WINDOW_HEIGHT - 220, WINDOW_WIDTH, 220,
@@ -2361,10 +2075,16 @@ int main(void)
         // --- Main menu draw ---
         if (state == MAIN_MENU)
         {
-            DrawTexturePro(menuBackground,
-                (Rectangle){0, 0, (float)menuBackground.width, (float)menuBackground.height},
-                (Rectangle){0, 0, WINDOW_WIDTH, WINDOW_HEIGHT},
-                (Vector2){0, 0}, 0, WHITE);
+            float menuCropOffsetY = 150.0f;
+            float scale = (float)WINDOW_WIDTH / menuBackground.width;
+            float sourceHeight = WINDOW_HEIGHT / scale;
+            float cropY = (menuBackground.height - sourceHeight) / 2.0f + menuCropOffsetY;
+            if (cropY < 0) cropY = 0;
+            if (cropY > menuBackground.height - sourceHeight) cropY = menuBackground.height - sourceHeight;
+    DrawTexturePro(menuBackground,
+    (Rectangle){0, 0, (float)menuBackground.width, (float)menuBackground.height},
+    (Rectangle){0, 0, WINDOW_WIDTH, WINDOW_HEIGHT},
+    (Vector2){0, 0}, 0, WHITE);
 
             // Soft navy veil, gently darker at top/bottom, lighter in the middle
             DrawRectangleGradientV(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT / 2,
@@ -2381,7 +2101,27 @@ int main(void)
             DrawText(title, titleX, titleY, 46, (Color){255, 215, 120, 255});
             DrawRectangle(WINDOW_WIDTH / 2 - 130, titleY + 56, 260, 2, (Color){255, 215, 120, 170});
 
-            // Menu items — single highlight, shown only once mainMenuInteracted becomes true
+            // Menu items — single highlight, shown only after first real interaction
+            static bool menuInteracted = false;
+            static bool mouseInitialized = false;
+            static Vector2 lastMousePos = {0, 0};
+            Vector2 mousePos = GetMousePosition();
+
+            if (!mouseInitialized)
+            {
+                lastMousePos = mousePos; // capture real starting position, don't count this as movement
+                mouseInitialized = true;
+            }
+            else if (mousePos.x != lastMousePos.x || mousePos.y != lastMousePos.y)
+            {
+                menuInteracted = true;
+            }
+            lastMousePos = mousePos;
+
+            if (IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_DOWN))
+                menuInteracted = true;
+
+             // Menu items — single highlight, shown only once mainMenuInteracted becomes true
             for (int i = 0; i < mainMenu.count; i++)
             {
                 int y = 320 + i * 55;
@@ -2415,11 +2155,10 @@ int main(void)
         if (state == LEADERBOARD)
         {
             DrawTexturePro(menuBackground,
-                (Rectangle){0, 0, (float)menuBackground.width, (float)menuBackground.height},
-                (Rectangle){0, 0, WINDOW_WIDTH, WINDOW_HEIGHT},
-                (Vector2){0, 0}, 0, WHITE);
+            (Rectangle){0, 0, (float)menuBackground.width, (float)menuBackground.height},
+            (Rectangle){0, 0, WINDOW_WIDTH, WINDOW_HEIGHT},
+            (Vector2){0, 0}, 0, WHITE);
             DrawRectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, (Color){0, 0, 0, 215});
-
             // Back arrow, top-left — gold accent, brightens on hover
             Rectangle backArrowRect = {20, 20, 50, 50};
             bool backHover = CheckCollisionPointRec(GetMousePosition(), backArrowRect);
@@ -2427,8 +2166,7 @@ int main(void)
             DrawText("<", 30, 30, 40, backColor);
             int lbW = MeasureText("LEADERBOARD", 44);
             DrawText("LEADERBOARD", WINDOW_WIDTH / 2 - lbW / 2, 155, 44, GOLD);
-
-            // Column X positions (fixed, so alignment never depends on font/name length)
+                      // Column X positions (fixed, so alignment never depends on font/name length)
             int colRankX  = WINDOW_WIDTH / 2 - 200;
             int colNameX  = WINDOW_WIDTH / 2 - 140;
             int colScoreX = WINDOW_WIDTH / 2 + 90;
@@ -2476,247 +2214,114 @@ int main(void)
                 // Level
                 DrawText(TextFormat("%d", leaderboard[i].level), colLevelX, rowY, 24, c);
             }
-            int escW = MeasureText("BACKSPACE / ESC to go back", 18);
-            DrawText("BACKSPACE / ESC to go back",
+            int escW = MeasureText("BACKSPACE to go back", 18);
+            DrawText("BACKSPACE to go back",
                      WINDOW_WIDTH / 2 - escW / 2, 565, 18, LIGHTGRAY);
         }
 
-        // --- How to play draw (scrollable) ---
+                // --- How to play draw ---
         if (state == HOW_TO_PLAY)
         {
-            DrawTexturePro(menuBackground,
-                (Rectangle){0, 0, (float)menuBackground.width, (float)menuBackground.height},
-                (Rectangle){0, 0, WINDOW_WIDTH, WINDOW_HEIGHT},
-                (Vector2){0, 0}, 0, WHITE);
-            DrawRectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, (Color){0, 0, 0, 220});
 
-            // Back arrow, top-left — gold accent, brightens on hover
+            DrawTexturePro(menuBackground,
+    (Rectangle){0, 0, (float)menuBackground.width, (float)menuBackground.height},
+    (Rectangle){0, 0, WINDOW_WIDTH, WINDOW_HEIGHT},
+    (Vector2){0, 0}, 0, WHITE);
+            DrawRectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, (Color){0, 0, 0, 220});
+             // Back arrow, top-left — gold accent, brightens on hover
             Rectangle backArrowRect = {20, 20, 50, 50};
             bool backHover = CheckCollisionPointRec(GetMousePosition(), backArrowRect);
             Color backColor = backHover ? (Color){255, 230, 160, 255} : (Color){255, 205, 110, 230};
             DrawText("<", 30, 30, 40, backColor);
-
             int hW = MeasureText("HOW TO PLAY", 44);
-            DrawText("HOW TO PLAY", WINDOW_WIDTH / 2 - hW / 2 + 2, 42, 44, (Color){0, 0, 0, 160});
-            DrawText("HOW TO PLAY", WINDOW_WIDTH / 2 - hW / 2, 40, 44, GOLD);
-            DrawRectangle(WINDOW_WIDTH / 2 - 130, 92, 260, 2, (Color){255, 215, 120, 180});
+            DrawText("HOW TO PLAY", WINDOW_WIDTH / 2 - hW / 2, 60, 44, GOLD);
 
-            // Viewport setup
-            int vpY = 106;
-            int vpH = WINDOW_HEIGHT - 166; // 634px
-            BeginScissorMode(0, vpY, WINDOW_WIDTH, vpH);
-
-            int lineY = vpY + 16 - (int)howToPlayScrollY;
-            int lineGap = 32;
+            int lineY = 140;
+            int lineGap = 34;
             Color headC = SKYBLUE;
             Color bodyC = LIGHTGRAY;
 
-            // CONTROLS section
-            DrawText("CONTROLS", 80, lineY, 26, headC); lineY += lineGap + 4;
+            DrawText("CONTROLS", 80, lineY, 26, headC); lineY += lineGap;
             DrawText("- Move Left / Right : LEFT & RIGHT arrow keys, or move the mouse", 100, lineY, 20, bodyC); lineY += lineGap;
             DrawText("- Shoot             : SPACE bar or LEFT mouse click", 100, lineY, 20, bodyC); lineY += lineGap;
             DrawText("- Pause             : P (while playing)", 100, lineY, 20, bodyC); lineY += lineGap;
-            DrawText("- Mute Audio        : M (anytime)", 100, lineY, 20, bodyC); lineY += lineGap;
             DrawText("- Menu Navigation   : UP / DOWN arrow keys, or hover with the mouse", 100, lineY, 20, bodyC); lineY += lineGap;
             DrawText("- Confirm Selection : ENTER, or click the highlighted item", 100, lineY, 20, bodyC); lineY += lineGap;
-            DrawText("- Back (in menus)   : BACKSPACE / ESC, or click the < arrow", 100, lineY, 20, bodyC); lineY += lineGap;
-            DrawText("- Scroll in Menus   : Mouse Wheel, UP / DOWN arrows, Page Up / Down", 100, lineY, 20, bodyC); lineY += lineGap + 16;
+            DrawText("- Back (in menus)   : BACKSPACE, or click the < arrow", 100, lineY, 20, bodyC); lineY += lineGap + 10;
 
-            // OBJECTIVE section
-            DrawText("OBJECTIVE", 80, lineY, 26, headC); lineY += lineGap + 4;
+            DrawText("OBJECTIVE", 80, lineY, 26, headC); lineY += lineGap;
             DrawText("- Destroy all enemies in the formation to clear a level", 100, lineY, 20, bodyC); lineY += lineGap;
             DrawText("- Avoid enemy bullets - you have 3 lives", 100, lineY, 20, bodyC); lineY += lineGap;
-            DrawText("- Level 3 is a Boss Fight - survive its attacks and destroy it", 100, lineY, 20, bodyC); lineY += lineGap + 16;
+            DrawText("- Level 3 is a Boss Fight - survive its attacks and destroy it", 100, lineY, 20, bodyC); lineY += lineGap + 10;
 
-            // ENEMY TYPES section
-            DrawText("ENEMY TYPES", 80, lineY, 26, headC); lineY += lineGap + 4;
+            DrawText("ENEMY TYPES", 80, lineY, 26, headC); lineY += lineGap;
             DrawText("- Basic / Dummy : weak, low score", 100, lineY, 20, bodyC); lineY += lineGap;
             DrawText("- Zigzag        : moves in a wave pattern", 100, lineY, 20, bodyC); lineY += lineGap;
             DrawText("- Rapid         : fires quickly", 100, lineY, 20, bodyC); lineY += lineGap;
-            DrawText("- Tank          : takes multiple hits, high score", 100, lineY, 20, bodyC); lineY += lineGap + 16;
+            DrawText("- Tank          : takes multiple hits, high score", 100, lineY, 20, bodyC); lineY += lineGap + 10;
 
-            // SCORING section
-            DrawText("SCORING", 80, lineY, 26, headC); lineY += lineGap + 4;
+            DrawText("SCORING", 80, lineY, 26, headC); lineY += lineGap;
             DrawText("- Beat the top 5 leaderboard scores to enter your name", 100, lineY, 20, bodyC); lineY += lineGap;
             DrawText("- The HI score (top-right) updates live as you beat it", 100, lineY, 20, bodyC); lineY += lineGap;
-            DrawText("- Hitting the boss awards +10 pts, defeating the boss gives +200 bonus pts", 100, lineY, 20, bodyC); lineY += lineGap + 16;
 
-            // STRATEGY & TIPS section
-            DrawText("STRATEGY & TIPS", 80, lineY, 26, headC); lineY += lineGap + 4;
-            DrawText("- Keep moving continuously to dodge incoming bullets", 100, lineY, 20, bodyC); lineY += lineGap;
-            DrawText("- Eliminate rapid & zigzag enemies early to reduce the bullet storm", 100, lineY, 20, bodyC); lineY += lineGap;
-            DrawText("- When Boss enters rage mode (<25% HP), its movement and firing speed double!", 100, lineY, 20, bodyC); lineY += lineGap + 20;
-
-            EndScissorMode();
-
-            // Soft top & bottom shadow gradients for smooth content clipping
-            DrawRectangleGradientV(0, vpY, WINDOW_WIDTH, 20, (Color){0, 0, 0, 160}, (Color){0, 0, 0, 0});
-            DrawRectangleGradientV(0, vpY + vpH - 20, WINDOW_WIDTH, 20, (Color){0, 0, 0, 0}, (Color){0, 0, 0, 160});
-
-            // Modern Scrollbar Track & Thumb
-            float maxScroll = 320.0f;
-            float thumbRatio = (float)vpH / (vpH + maxScroll);
-            float thumbH = vpH * thumbRatio;
-            if (thumbH < 40.0f) thumbH = 40.0f;
-            float thumbY = vpY + (howToPlayScrollY / maxScroll) * (vpH - thumbH);
-
-            DrawRectangleRounded((Rectangle){WINDOW_WIDTH - 24, (float)vpY, 8, (float)vpH}, 0.5f, 4, (Color){255, 255, 255, 25});
-            DrawRectangleRounded((Rectangle){WINDOW_WIDTH - 24, thumbY, 8, thumbH}, 0.5f, 4,
-                scrollbarDragging ? (Color){255, 230, 160, 240} : (Color){255, 205, 110, 190});
-
-            // Bottom bar with footer text and scroll hint
-            DrawRectangle(0, WINDOW_HEIGHT - 55, WINDOW_WIDTH, 55, (Color){8, 10, 22, 230});
-            DrawLine(0, WINDOW_HEIGHT - 55, WINDOW_WIDTH, WINDOW_HEIGHT - 55, (Color){255, 255, 255, 40});
-
-            int backW = MeasureText("BACKSPACE / ESC to go back", 18);
-            DrawText("BACKSPACE / ESC to go back",
-                     WINDOW_WIDTH / 2 - backW / 2, WINDOW_HEIGHT - 38, 18, LIGHTGRAY);
-            DrawText("Scroll: Wheel / [UP] [DOWN]", WINDOW_WIDTH - 240, WINDOW_HEIGHT - 36, 15, (Color){150, 160, 180, 200});
+            int backW = MeasureText("BACKSPACE to go back", 18);
+            DrawText("BACKSPACE to go back",
+                     WINDOW_WIDTH / 2 - backW / 2, WINDOW_HEIGHT - 40, 18, LIGHTGRAY);
         }
 
-        // --- Credits screen (scrollable) ---
+                // --- Credits draw ---
         if (state == CREDITS)
         {
-            DrawTexturePro(menuBackground,
-                (Rectangle){0, 0, (float)menuBackground.width, (float)menuBackground.height},
-                (Rectangle){0, 0, WINDOW_WIDTH, WINDOW_HEIGHT},
-                (Vector2){0, 0}, 0, WHITE);
+DrawTexturePro(menuBackground,
+    (Rectangle){0, 0, (float)menuBackground.width, (float)menuBackground.height},
+    (Rectangle){0, 0, WINDOW_WIDTH, WINDOW_HEIGHT},
+    (Vector2){0, 0}, 0, WHITE);
             DrawRectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, (Color){0, 0, 0, 220});
-
             // Back arrow, top-left — gold accent, brightens on hover
             Rectangle backArrowRect = {20, 20, 50, 50};
             bool backHover = CheckCollisionPointRec(GetMousePosition(), backArrowRect);
             Color backColor = backHover ? (Color){255, 230, 160, 255} : (Color){255, 205, 110, 230};
             DrawText("<", 30, 30, 40, backColor);
 
-            // Title & Heading
-            const char *titleText = "SPACE INVADERS";
-            int tW = MeasureText(titleText, 24);
-            DrawText(titleText, WINDOW_WIDTH / 2 - tW / 2, 20, 24, (Color){170, 200, 255, 220});
-
             const char *heading = "CREDITS";
-            int hW = MeasureText(heading, 44);
-            DrawText(heading, WINDOW_WIDTH / 2 - hW / 2 + 2, 48, 44, (Color){0, 0, 0, 160});
-            DrawText(heading, WINDOW_WIDTH / 2 - hW / 2, 46, 44, GOLD);
-            DrawRectangle(WINDOW_WIDTH / 2 - 90, 96, 180, 2, (Color){255, 215, 120, 180});
+            int hW = MeasureText(heading, 46);
+            DrawText(heading, WINDOW_WIDTH / 2 - hW / 2 + 2, 122, 46, (Color){0, 0, 0, 160});
+            DrawText(heading, WINDOW_WIDTH / 2 - hW / 2, 120, 46, (Color){255, 215, 120, 255});
+            DrawRectangle(WINDOW_WIDTH / 2 - 90, 178, 180, 2, (Color){255, 215, 120, 180});
 
-            // Viewport setup
-            int vpY = 110;
-            int vpH = WINDOW_HEIGHT - 170; // 630px
-            BeginScissorMode(0, vpY, WINDOW_WIDTH, vpH);
+            const char *sub = "Developed by BUET CSE Students";
+            int subW = MeasureText(sub, 22);
+            DrawText(sub, WINDOW_WIDTH / 2 - subW / 2, 210, 22, (Color){170, 200, 255, 230});
 
-            int cardW = 700;
+            // --- Developer card 1 ---
+            int cardW = 560, cardH = 110;
             int cardX = WINDOW_WIDTH / 2 - cardW / 2;
-            int curY = vpY + 14 - (int)creditsScrollY;
+            int card1Y = 290;
+            DrawRectangleRounded((Rectangle){cardX, card1Y, cardW, cardH}, 0.15f, 8, (Color){255, 255, 255, 20});
+            DrawRectangleRoundedLines((Rectangle){cardX, card1Y, cardW, cardH}, 0.15f, 8, (Color){255, 215, 120, 120});
+            DrawRectangle(cardX, card1Y, 5, cardH, (Color){255, 215, 120, 220});
 
-            // --- Card 1: Project Supervisor ---
-            int card1H = 96;
-            DrawRectangleRounded((Rectangle){(float)cardX, (float)curY, (float)cardW, (float)card1H}, 0.12f, 8, (Color){255, 255, 255, 18});
-            DrawRectangleRoundedLines((Rectangle){(float)cardX, (float)curY, (float)cardW, (float)card1H}, 0.12f, 8, (Color){255, 215, 120, 120});
-            DrawRectangle(cardX, curY, 5, card1H, GOLD);
-            DrawText("PROJECT SUPERVISOR", cardX + 24, curY + 14, 18, GOLD);
-            DrawText("Mahir Labib Dihan", cardX + 24, curY + 38, 24, WHITE);
-            DrawText("Lecturer, Department of CSE, BUET", cardX + 24, curY + 68, 18, (Color){180, 210, 245, 240});
-            curY += card1H + 16;
+            const char *name1 = "Mohammad Iftekhar Galib";
+            DrawText(name1, cardX + 30, card1Y + 24, 26, (Color){235, 240, 250, 255});
+            DrawText("Roll: 2505157", cardX + 30, card1Y + 62, 20, (Color){170, 200, 255, 220});
 
-            // --- Card 2: Developers (Section C2) ---
-            int card2H = 156;
-            DrawRectangleRounded((Rectangle){(float)cardX, (float)curY, (float)cardW, (float)card2H}, 0.12f, 8, (Color){255, 255, 255, 18});
-            DrawRectangleRoundedLines((Rectangle){(float)cardX, (float)curY, (float)cardW, (float)card2H}, 0.12f, 8, (Color){100, 190, 255, 120});
-            DrawRectangle(cardX, curY, 5, card2H, SKYBLUE);
-            DrawText("DEVELOPERS (SECTION C2)", cardX + 24, curY + 14, 18, SKYBLUE);
+            // --- Developer card 2 ---
+            int card2Y = card1Y + cardH + 24;
+            DrawRectangleRounded((Rectangle){cardX, card2Y, cardW, cardH}, 0.15f, 8, (Color){255, 255, 255, 20});
+            DrawRectangleRoundedLines((Rectangle){cardX, card2Y, cardW, cardH}, 0.15f, 8, (Color){255, 215, 120, 120});
+            DrawRectangle(cardX, card2Y, 5, cardH, (Color){255, 215, 120, 220});
 
-            DrawText("Kazi Md. Amimul Ahsan Tamim", cardX + 24, curY + 40, 22, WHITE);
-            DrawText("Roll: 2505151  |  Section C2, BUET CSE", cardX + 24, curY + 66, 18, (Color){180, 210, 245, 230});
+            const char *name2 = "Kazi Md. Aminul Ahsan Tamim";
+            DrawText(name2, cardX + 30, card2Y + 24, 26, (Color){235, 240, 250, 255});
+            DrawText("Roll: 2505151", cardX + 30, card2Y + 62, 20, (Color){170, 200, 255, 220});
 
-            DrawLine(cardX + 24, curY + 92, cardX + cardW - 24, curY + 92, (Color){255, 255, 255, 35});
+            const char *thanks = "Thank you for playing!";
+            int thW = MeasureText(thanks, 20);
+            DrawText(thanks, WINDOW_WIDTH / 2 - thW / 2, card2Y + cardH + 30, 20, (Color){200, 210, 230, 220});
 
-            DrawText("Mohammad Iftekhar Galib", cardX + 24, curY + 102, 22, WHITE);
-            DrawText("Roll: 2505157  |  Section C2, BUET CSE", cardX + 24, curY + 128, 18, (Color){180, 210, 245, 230});
-            curY += card2H + 16;
-
-            // --- Card 3: Art & Resources ---
-            int card3H = 96;
-            DrawRectangleRounded((Rectangle){(float)cardX, (float)curY, (float)cardW, (float)card3H}, 0.12f, 8, (Color){255, 255, 255, 18});
-            DrawRectangleRoundedLines((Rectangle){(float)cardX, (float)curY, (float)cardW, (float)card3H}, 0.12f, 8, (Color){190, 150, 255, 120});
-            DrawRectangle(cardX, curY, 5, card3H, (Color){190, 150, 255, 255});
-            DrawText("ART & RESOURCES", cardX + 24, curY + 14, 18, (Color){210, 180, 255, 255});
-            DrawText("Original game assets and resources produced by the", cardX + 24, curY + 40, 18, (Color){235, 240, 250, 255});
-            DrawText("development team utilizing Generative AI.", cardX + 24, curY + 66, 18, (Color){235, 240, 250, 255});
-            curY += card3H + 16;
-
-            // --- Card 4: Special Effects (FX) & Technical Highlights ---
-            int card4H = 370;
-            DrawRectangleRounded((Rectangle){(float)cardX, (float)curY, (float)cardW, (float)card4H}, 0.12f, 8, (Color){255, 255, 255, 18});
-            DrawRectangleRoundedLines((Rectangle){(float)cardX, (float)curY, (float)cardW, (float)card4H}, 0.12f, 8, (Color){120, 220, 140, 120});
-            DrawRectangle(cardX, curY, 5, card4H, (Color){120, 220, 140, 255});
-            DrawText("SPECIAL EFFECTS & TECHNICAL HIGHLIGHTS", cardX + 24, curY + 14, 18, (Color){130, 230, 150, 255});
-            DrawLine(cardX + 24, curY + 38, cardX + cardW - 24, curY + 38, (Color){255, 255, 255, 30});
-
-            int fxY = curY + 48;
-            int fxStep = 52;
-
-            // Item 1
-            DrawText("> 3-Layer Parallax Starfield", cardX + 24, fxY, 19, (Color){120, 210, 255, 255});
-            DrawText("  Cosmic depth simulation with sub-pixel stars & camera shake", cardX + 24, fxY + 22, 18, (Color){230, 235, 245, 255});
-            fxY += fxStep;
-
-            // Item 2
-            DrawText("> Screen Shake FX", cardX + 24, fxY, 19, (Color){120, 210, 255, 255});
-            DrawText("  Dynamic camera trauma impulse on player damage, boss hits & explosions", cardX + 24, fxY + 22, 18, (Color){230, 235, 245, 255});
-            fxY += fxStep;
-
-            // Item 3
-            DrawText("> Particle Explosion System", cardX + 24, fxY, 19, (Color){120, 210, 255, 255});
-            DrawText("  Multi-particle radial velocity bursts with life decay upon entity defeat", cardX + 24, fxY + 22, 18, (Color){230, 235, 245, 255});
-            fxY += fxStep;
-
-            // Item 4
-            DrawText("> Multi-Frame Sprite Cycles", cardX + 24, fxY, 19, (Color){120, 210, 255, 255});
-            DrawText("  Organic looping animations for all 5 enemy types and boss crab", cardX + 24, fxY + 22, 18, (Color){230, 235, 245, 255});
-            fxY += fxStep;
-
-            // Item 5
-            DrawText("> Boss Rage & Attack Phases", cardX + 24, fxY, 19, (Color){120, 210, 255, 255});
-            DrawText("  Enraged speed rush, 8-way starburst and circular bullet spirals", cardX + 24, fxY + 22, 18, (Color){230, 235, 245, 255});
-            fxY += fxStep;
-
-            // Item 6
-            DrawText("> Viewport Scissoring & Audio", cardX + 24, fxY, 19, (Color){120, 210, 255, 255});
-            DrawText("  Smooth scroll clipping with edge gradient fades, BGM stream & [M] mute", cardX + 24, fxY + 22, 18, (Color){230, 235, 245, 255});
-
-            curY += card4H + 24;
-
-            // Thank you banner
-            const char *thanks = "---  Thank You For Playing!  ---";
-            int thW = MeasureText(thanks, 22);
-            DrawText(thanks, WINDOW_WIDTH / 2 - thW / 2, curY, 22, GOLD);
-
-            EndScissorMode();
-
-            // Soft top & bottom shadow gradients
-            DrawRectangleGradientV(0, vpY, WINDOW_WIDTH, 20, (Color){0, 0, 0, 160}, (Color){0, 0, 0, 0});
-            DrawRectangleGradientV(0, vpY + vpH - 20, WINDOW_WIDTH, 20, (Color){0, 0, 0, 0}, (Color){0, 0, 0, 160});
-
-            // Modern Scrollbar Track & Thumb
-            float maxScroll = 340.0f;
-            float thumbRatio = (float)vpH / (vpH + maxScroll);
-            float thumbH = vpH * thumbRatio;
-            if (thumbH < 40.0f) thumbH = 40.0f;
-            float thumbY = vpY + (creditsScrollY / maxScroll) * (vpH - thumbH);
-
-            DrawRectangleRounded((Rectangle){WINDOW_WIDTH - 24, (float)vpY, 8, (float)vpH}, 0.5f, 4, (Color){255, 255, 255, 25});
-            DrawRectangleRounded((Rectangle){WINDOW_WIDTH - 24, thumbY, 8, thumbH}, 0.5f, 4,
-                scrollbarDragging ? (Color){255, 230, 160, 240} : (Color){255, 205, 110, 190});
-
-            // Bottom bar with footer text and scroll hint
-            DrawRectangle(0, WINDOW_HEIGHT - 55, WINDOW_WIDTH, 55, (Color){8, 10, 22, 230});
-            DrawLine(0, WINDOW_HEIGHT - 55, WINDOW_WIDTH, WINDOW_HEIGHT - 55, (Color){255, 255, 255, 40});
-
-            int backW = MeasureText("BACKSPACE / ESC to go back", 18);
-            DrawText("BACKSPACE / ESC to go back",
-                     WINDOW_WIDTH / 2 - backW / 2, WINDOW_HEIGHT - 38, 18, LIGHTGRAY);
-            DrawText("Scroll: Wheel / [UP] [DOWN]", WINDOW_WIDTH - 240, WINDOW_HEIGHT - 36, 15, (Color){150, 160, 180, 200});
+                        int backW = MeasureText("BACKSPACE to go back", 18);
+            DrawText("BACKSPACE to go back",
+                     WINDOW_WIDTH / 2 - backW / 2, WINDOW_HEIGHT - 40, 18, LIGHTGRAY);
         }
 
         // --- Name entry draw ---
@@ -2777,31 +2382,14 @@ int main(void)
         // --- Boss fight draw ---
         if (state == BOSS_FIGHT && boss.active)
         {
-            // Select the active frame set: rage frames during ragePhase 1/2/3, normal otherwise
-            Texture2D *activeBossFrames = (boss.ragePhase != 0) ? bossFramesRage : bossFramesNormal;
-            Rectangle *activeBossSrcs   = (boss.ragePhase != 0) ? bossSrcRectRage : bossSrcRectNormal;
-            int bossFrame = boss.currentFrame;
-            // Clamp frame index defensively (rage/normal sets have different counts)
-            int maxFrame = (boss.ragePhase != 0) ? BOSS_FRAMES_RAGE : BOSS_FRAMES_NORMAL;
-            if (bossFrame >= maxFrame) bossFrame = 0;
-
-            Rectangle src = activeBossSrcs[bossFrame];
-            float aspect  = (src.width > 0) ? (src.height / src.width) : 1.0f;
-            float dstW    = 280.0f;
-            float dstH    = dstW * aspect;
-            // Anchor top baseline at boss.y + 12px, centered horizontally
-            Rectangle dst = {
-                boss.x + sx + (BOSS_WIDTH - dstW) * 0.5f,
-                boss.y + sy + 12.0f,
-                dstW,
-                dstH
-            };
-
+            // Draw boss sprite (boss.png), scaled to BOSS_WIDTH x BOSS_HEIGHT
             // Apply RED tint on hit-flash frames, otherwise draw normally
             Color bossTint = (boss.hitFlashFrames > 0) ? RED : WHITE;
-            DrawTexturePro(activeBossFrames[bossFrame], src, dst, (Vector2){0, 0}, 0.0f, bossTint);
+            bossTexDst.x = boss.x + sx;
+            bossTexDst.y = boss.y + sy;
+            DrawTexturePro(bossTex, bossTexSrc, bossTexDst, bossTexOrigin, 0.0f, bossTint);
 
-            // Boss health bar — centered 620px
+            // Boss health bar 
             float barW = 620.0f;
             float barX = WINDOW_WIDTH / 2.0f - barW / 2.0f;
             float hpRatio = (float)boss.health / (float)boss.maxHealth;
@@ -2845,17 +2433,13 @@ int main(void)
     UnloadSound(sndEnemyMove);
     CloseAudioDevice();
     UnloadTexture(spaceshipTex);
+    UnloadTexture(dummy);
+    UnloadTexture(basicTex);
+    UnloadTexture(zigzag);
+    UnloadTexture(rapidTex);
+    UnloadTexture(tank);
     UnloadTexture(heartTex);
-    UnloadTexture(loadingBackground);
-    UnloadTexture(menuBackground);
-    // Unload enemy frame textures
-    for (int t = 1; t < 6; t++)
-        for (int f = 0; f < enemyFrameCount[t]; f++)
-            UnloadTexture(enemyFrames[t][f]);
-    for (int f = 0; f < BOSS_FRAMES_NORMAL; f++)
-        UnloadTexture(bossFramesNormal[f]);
-    for (int f = 0; f < BOSS_FRAMES_RAGE; f++)
-        UnloadTexture(bossFramesRage[f]);
+    UnloadTexture(bossTex);
 
     CloseWindow();
     return 0;

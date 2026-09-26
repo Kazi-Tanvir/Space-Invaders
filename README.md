@@ -1,4 +1,4 @@
-# 🚀 Space Invaders — Build Guide (Raylib + C)
+w# 🚀 Space Invaders — Build Guide (Raylib + C)
 
 A complete, step-by-step tutorial to build a Space Invaders game from scratch using **raylib 6.0** and **C**.  
 By the end of this guide you will have a fully playable game with a player ship, alien waves, bullets, collisions, scoring, lives, and game-over/win screens.

@@ -1,0 +1,196 @@
+1. make matrix for individual enemy [row , columnwise manupulation] [done]
+2. add levels [done]
+3. add boss level , level 3 [done]
+4. 5 types [done]
+
+
+
+n this code i am using grid to control the enemy but instead i want to use matrix for the enemy manipulation 
+- by usgin matrix i will able to control the enemy movemnets 
+- and i will be able to add variety to enemy movemnets pattern [ mostly in row]
+- here are the five suggested enemy type that i want to add 
+type 1 : basic: [normal fire , normal movemnets , health 1 ]
+type 2 : dummy: [takes the front row , doesnt fire , health 2 ][ moves similar to basic enemy]
+type 3 : rapid: [moves faster  , health 1 ][shoots like basic enemy]
+type 4 : zigzag: [  two rows are alloted to them where they move like sine wave ][but sharp edge like triangle]
+type 5 : tank: [ health 3 , ][shoots like basic enemy ][ move slowly]
+
+think throughly how you will implement these features 
+and make sure it doesnt break any of the previous codes 
+- think of edge cases before implementation
+- here are few that i found : 
+ 1. enemy collides on each other 
+ 2. hitbox is smaller than enemy size [ it should be the same size ]
+ 3. add spacing in x axis between enemy
+ 4. they should reverse if they collide with the boundary or other enemy
+ 5. they will go down in y axis overtime they should go down after a set amount of time 
+  
+make sure you dont change anything before proper planning 
+during the plan make critcally analysis on why your code is correct and always think if it can be solves with simpler code and loigic and do minimal change 
+reason why your code will work than make a change
+
+
+now i want to add levels to the game 
+there will be 3 levels 
+player can choose their level from main menu 
+level 1 :
+there will only 3 types of enemy [ basic , tank , rapid]
+for level 2 
+- increase the number of enemy 
+- increase the speed of enemy 
+- will have all 5 types of enemy 
+level 3 : will be a boss fight [ no need to implement this right now , but plan for it]
+
+add a boss fight 
+- it will have 3 kinds of attacks 
+1. rapid shooting [ singular firing]
+2. star shpaed shooting [it will shoot in all directions but this should be slower than rapid]
+3. circle shooting [it will shoot ]
+
+finally it will randomly spawn basic , rapid enemy after a certain amount of health is lost 
+
+there will be health bar at the top of screen [ total hits 50]
+ collsiion animation should red tint  
+
+
+ here are some fixes that needs to be implemented in boss round [ level 3]
+1. this level should end with the death of the boss 
+2. the random enemies should appear from the enemy not random position 
+3. boss should have both x and y axis [ not too much in y] movement 
+
+
+
+now i want to add the following features 
+1. pause the game [done]
+2. resume game [even after forced close] [ data should be saved in log file ] [done]
+3. leaderboard [store top 5 high score name will be by default tamim but if sombody makes it to top 5 he will get a option to enter his name afte winning the game] [done]
+4. make simple txt file to store [username , score , level ] [done]
+5. there will be main menu [ new game-> level selection , resume game , leaderboard , exit ] [done]
+6. in game there will be pause menu [ resume game , level selection , leaderboard , exit ] [done]
+7. navigate with arrows in menu + mouse control + keyboard buttons [done]
+8. add a loading screen while opening the game [ there will be bg and there will be loading bar 2-3s ] [done]
+
+
+here are few bugs 
+1. there is no level selection menu after i click for new game 
+2. there is no pause mneu [and no option for pause to ] [ you should press p to pause in game]
+3. also force quitting doesnt saves the game 
+4. there no way you can resume a game [there are no file to game data for pausing and resuming in game ]
+5. you cannot enter name after making a high score 
+6. in menu enter and few other navigation arent working properly 
+
+
+
+Add the screen shake effect to main.c
+
+-add the screen shake effect from reference to the main.c
+-when the player gets hit the screen should shake 
+-when the boss gets hit the screen should shake
+-after the player gets hit there should be a invincibility period of  where the player cannot get hit again(duration same as reference)
+-before implementing the screen shake effect, I will analyze the current code structure to ensure that adding this feature does not break any existing functionality.   
+-keep in mind that main.c might have different variables and structures than reference.c, so I will need to adapt the screen shake logic accordingly.
+
+
+
+
+Add the particles effect to main.c
+-add the particle effect from reference to the main.c
+-when enemy dies, there should be a particle effect
+-when the player dies, there should be a particle effect
+-when the boss dies, there should be a particle effect
+-keep in mind that main.c might have different variables and structures than reference.c, so I will need to adapt the particle effect logic accordingly.
+-before implementing the particle effect, I will analyze the current code structure to ensure that adding this feature does not break any existing functionality.
+-make a implementation plan first and ask me after making the plan
+-dont start coding before getting approval for the implementation plan.
+
+
+
+
+Boss fight improvement [done]
+-after losing 75% health boss should come bottom-mid of screen and stay for few seconds while moving in a higher speed and go back to original state
+-the enemis spawned from boss should look like they are coming out of boss(now they look like they are spawned from thin air )
+-the rapid attack of boss should be much faster
+-also boss fires are coming out of thin air fix their position(so that it seems like boss is firing)
+
+
+
+now i want to improve the animation 
+- there should be 2-3 frames for each of the sprites so it looks like they are animated
+- the animation should be smooth and look natural
+- i have 3 sprites for 5 type of enemies [ collect 2 more if possible]
+- for the boss make atleast 5 frames [ 5 sprites who are on loop so it looks animated ]
+- change boss color in rage mode 
+
+now for background music and sound 
+- add bg music rest of the sound effects are okay 
+
+featues :
+- add a mute button for muting all the music and sound [ also you able to use m for mute and unmute ]
+- there will eb icon to show if its in mute or unmute [on top right corner]
+
+
+
+ask me question before proceeding and make a implementation plan first
+also tell me if you are able to create sprites and music [ or collect them from the internet ] 
+Sprite Animation System
+Goal
+Add frame-based sprite animation to all entities so they feel alive instead of static. Every visible character should cycle through multiple sprite frames in a smooth loop. 
+Enemy Sprites (5 types)
+- Each enemy type needs 2–3 animation frames (separate PNG files per frame).
+- I currently have 3 sprite files covering the 5 enemy types (dummy.png, zigzag.png, tank.png). Two types (BASIC and RAPID) reuse sprites from other types with color tints. You need to either:
+  - Create or source 2 additional unique base sprites so each of the 5 enemy types has its own distinct base sprite, or
+  - At minimum, produce 2–3 frame variants of each existing sprite.
+- Naming convention: <type>_frame1.png, <type>_frame2.png, <type>_frame3.png (e.g. tank_frame1.png, tank_frame2.png).
+- Animation rate: Cycle frames at a consistent interval (e.g. ~0.15–0.25 seconds per frame). The animation should loop seamlessly — no visible pop or stutter between the last and first frame.
+Boss Sprite
+- The boss (boss.png) needs at least 5 animation frames that loop continuously during the boss fight.
+- Frames should convey subtle movement (e.g. claw/leg motion, antenna pulse, body breathing) to make the crab feel organic.
+- Rage mode visual change: When the boss enters rage mode (ragePhase > 0), swap to a different color palette (e.g. shift to red/magenta tint, or use a separate set of rage-mode frames). This must be visually obvious so the player immediately recognizes the boss has enraged. Revert to normal colors when rage ends (ragePhase == 0).
+Animation Implementation Requirements
+- Store frame textures in an array per entity type. Add a float animTimer and int currentFrame to track animation state.
+- Advance animTimer by dt each frame; when it exceeds the per-frame duration, increment currentFrame and wrap around using modulo.
+- All enemies of the same type should not be perfectly in sync — stagger initial animTimer values with small random offsets so the grid looks natural rather than robotic.
+- The player ship (spaceship.png) can remain static for now (no animation needed).
+Audio — Background Music
+Goal
+Background music is already implemented (bg_space.wav loaded as MusicStream, looping at 0.40 volume). All other sound effects (shoot, enemy death, boss hit, boss rage, enemy march) are already in place and working. No changes needed to existing SFX. 
+If bg music was already added in a prior pass, confirm it's working and skip this section. If not, implement it per the existing pattern in main.c (lines 821–823). 
+
+Mute/Unmute Toggle
+Goal
+Add a single toggle that mutes all audio (background music + every sound effect) and shows a persistent visual indicator. 
+Keyboard Shortcut
+- Press M to toggle mute/unmute.
+- This should work in all game states (menus, gameplay, pause, boss fight — everywhere).
+Visual Icon
+- Place a speaker icon in the top-right corner of the screen (near the existing pause icon, but to its left so they don't overlap).
+- Unmuted state: Speaker icon with sound waves (or simply a speaker symbol). Use a light/white color.
+- Muted state: Speaker icon with a strike-through line or an "X" overlay. Use a red or gray color to make the muted state visually distinct.
+- The icon should be small and non-intrusive (similar size/style to the existing pause ▐▐ icon).
+- Draw it on every frame in every state so the player always knows the current audio status.
+Implementation Notes
+- Use a single bool isMuted flag.
+- When muted: set master volume to 0 (or skip all PlaySound() / SetMusicVolume() calls). When unmuted: restore to normal volumes.
+- The mute state does not need to persist across game sessions (resets to unmuted on launch).
+
+
+
+Add animation
+
+-I have added the extra sprites for the enemies where there were placeholders for them
+-i hsve added a extra sprite for boss rage 
+-after adding new sprites the sprites are way too breathing
+- their are some alignment issue for zigzag and tank enemies 
+-the size is also a issue 
+-theres a alignment issue with the boss_frame2.png and boss_rage_frame4.png [ their y positions are different ]
+- their are some issues with the scaling of the sprites 
+
+
+
+-at first add the placeholder sprites and extra sprites for those i have added for example-boss_rage_frame4.png [ after that you can scale them a bit to make them look good ]
+-make a implementation plan first ask me before start coding
+
+
+change the code so that no previous code is broken
+-dont change the sprites(images themselves) 
+-RESIZE OR ALIGN THEM SO THAT THEY MATCH THE PREVIOUS SIZE
