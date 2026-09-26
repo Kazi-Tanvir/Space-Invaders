@@ -47,6 +47,10 @@
 #define ENEMY_DROP_STEP 20.0f
 #define ENEMY_DROP_INTERVAL 8.0f // seconds between Y-drops
 
+// Enemy sprite animation
+#define ENEMY_ANIM_RATE  0.20f  // seconds per animation frame
+#define ENEMY_MAX_FRAMES 2      // max frames stored per enemy type
+
 // Level system
 #define NUM_LEVELS 3
 
@@ -103,6 +107,11 @@
 #define BOSS_HIT_Y_OFFSET  (BOSS_HEIGHT * 0.08f)  // small top gap (antenna space)
 #define BOSS_HIT_WIDTH     (BOSS_WIDTH  - BOSS_HIT_X_MARGIN * 2)
 #define BOSS_HIT_HEIGHT    (BOSS_HEIGHT * 0.50f)   // only the solid body, no legs
+
+// Boss sprite animation
+#define BOSS_FRAMES_NORMAL 5          // normal mode animation frames
+#define BOSS_FRAMES_RAGE   3          // rage mode animation frames
+#define BOSS_ANIM_RATE     0.15f      // seconds per frame
 
 // Score values per enemy type
 #define SCORE_DUMMY 5
@@ -162,6 +171,9 @@ typedef struct Enemy
     int maxHealth;
     int hitFlashFrames; // >0 means draw with RED tint
     bool active;
+    // Sprite animation
+    float animTimer;    // time accumulator for frame cycling
+    int   currentFrame; // current frame index
 } Enemy;
 
 typedef enum GameState
@@ -223,6 +235,9 @@ typedef struct Boss
     int   ragePhase;     // 0=normal,1=dash-to-mid,2=raging,3=returning
     float rageTimer;     // time spent at mid-screen during rage
     bool  rageTriggered; // one-shot flag
+    // Sprite animation
+    float animTimer;     // accumulates dt for frame cycling
+    int   currentFrame;  // current frame index (bounded by active frame set)
 } Boss;
 
 // Loading screen
@@ -315,6 +330,9 @@ static void InitEnemy(Enemy *e, int row, int col, int type, float speedMul)
     e->shootTimer = (float)GetRandomValue(0, 200) / 100.0f; // stagger initial shots
     e->hitFlashFrames = 0;
     e->active = true;
+    // Stagger animation so enemies in the grid don't all flash in sync
+    e->animTimer    = (float)GetRandomValue(0, (int)(ENEMY_ANIM_RATE * 100)) / 100.0f;
+    e->currentFrame = GetRandomValue(0, 1);
     switch (type)
     {
     case ENEMY_DUMMY:
@@ -408,6 +426,8 @@ static void ResetBoss(Boss *b)
     b->ragePhase = 0;
     b->rageTimer = 0.0f;
     b->rageTriggered = false;
+    b->animTimer    = 0.0f;
+    b->currentFrame = 0;
 }
 
 static void SpawnParticles(Particle particles[], float px, float py, int count)
@@ -795,15 +815,45 @@ int main(void)
 
     // Load all textures
     Texture2D spaceshipTex = LoadTexture("resources/spaceship.png");
-    Texture2D dummy = LoadTexture("resources/dummy.png");     // ENEMY_DUMMY
-    Texture2D basicTex = LoadTexture("resources/dummy.png");  // ENEMY_BASIC (same sprite, cyan tint)
-    Texture2D zigzag = LoadTexture("resources/zigzag.png");   // ENEMY_ZIGZAG
-    Texture2D rapidTex = LoadTexture("resources/zigzag.png"); // ENEMY_RAPID (same sprite, yellow tint)
-    Texture2D tank = LoadTexture("resources/tank.png");       // ENEMY_TANK
-    Texture2D heartTex = LoadTexture("resources/heart.png");
-    Texture2D bossTex = LoadTexture("resources/boss.png");    // Level 3 boss sprite
-    // Source rect covers the full boss texture; dest rect sizes it to BOSS_WIDTH x BOSS_HEIGHT
-    Rectangle bossTexSrc = {0, 0, (float)bossTex.width, (float)bossTex.height};
+    Texture2D heartTex     = LoadTexture("resources/heart.png");
+
+    // Enemy frame arrays — indexed by EnemyType enum value (slot 0 = ENEMY_DEAD, unused)
+    // frameCount[t] = number of valid animation frames for type t
+    Texture2D enemyFrames[6][ENEMY_MAX_FRAMES] = {0};
+    int       enemyFrameCount[6]               = {0};
+
+    enemyFrames[ENEMY_DUMMY][0]  = LoadTexture("resources/dummy_frame1.png");
+    enemyFrames[ENEMY_DUMMY][1]  = LoadTexture("resources/dummy_frame2.png");
+    enemyFrameCount[ENEMY_DUMMY] = 2;
+
+    enemyFrames[ENEMY_BASIC][0]  = LoadTexture("resources/basic_frame1.png");
+    enemyFrames[ENEMY_BASIC][1]  = LoadTexture("resources/basic_frame2.png");
+    enemyFrameCount[ENEMY_BASIC] = 2;
+
+    enemyFrames[ENEMY_ZIGZAG][0]  = LoadTexture("resources/zigzag_frame1.png");
+    enemyFrameCount[ENEMY_ZIGZAG] = 1;  // frame2 pending image quota reset
+
+    enemyFrames[ENEMY_TANK][0]  = LoadTexture("resources/tank_frame1.png");
+    enemyFrameCount[ENEMY_TANK] = 1;    // frame2 pending image quota reset
+
+    enemyFrames[ENEMY_RAPID][0]  = LoadTexture("resources/rapid_frame1.png");
+    enemyFrameCount[ENEMY_RAPID] = 1;   // frame2 pending image quota reset
+
+    // Boss animation frame arrays
+    Texture2D bossFramesNormal[BOSS_FRAMES_NORMAL];
+    bossFramesNormal[0] = LoadTexture("resources/boss_frame1.png");
+    bossFramesNormal[1] = LoadTexture("resources/boss_frame2.png");
+    bossFramesNormal[2] = LoadTexture("resources/boss_frame3.png");
+    bossFramesNormal[3] = LoadTexture("resources/boss_frame4.png");
+    bossFramesNormal[4] = LoadTexture("resources/boss_frame5.png");
+
+    Texture2D bossFramesRage[BOSS_FRAMES_RAGE];
+    bossFramesRage[0] = LoadTexture("resources/boss_rage_frame1.png");
+    bossFramesRage[1] = LoadTexture("resources/boss_rage_frame2.png");
+    bossFramesRage[2] = LoadTexture("resources/boss_rage_frame3.png");
+
+    // Source/dest rects for boss drawing (updated each frame)
+    Rectangle bossTexSrc = {0, 0, (float)bossFramesNormal[0].width, (float)bossFramesNormal[0].height};
     Rectangle bossTexDst = {0, 0, BOSS_WIDTH, BOSS_HEIGHT}; // x/y set each frame
     Vector2   bossTexOrigin = {0, 0};
 
@@ -869,6 +919,7 @@ int main(void)
     GameState state = LOADING; // always starts with loading screen
     float loadTimer = 0.0f;
     bool shouldExit = false;
+    bool isMuted = false;          // M key toggles mute; starts unmuted
     GameState returnState = MAIN_MENU; // where LEADERBOARD goes back to
     GameState pausedFrom = PLAYING;    // PLAYING or BOSS_FIGHT before pause
     float autoSaveTimer = 0.0f;        // periodic auto-save every 10 s during gameplay
@@ -921,6 +972,13 @@ int main(void)
 
         // Pump the looping background music every frame (required by raylib)
         UpdateMusicStream(bgMusic);
+
+        // --- M key: toggle mute (works in all states) ---
+        if (IsKeyPressed(KEY_M))
+        {
+            isMuted = !isMuted;
+            SetMasterVolume(isMuted ? 0.0f : 1.0f);
+        }
 
         // --- Update starfield (always runs) ---
         for (int i = 0; i < STAR_TOTAL; i++)
@@ -1274,6 +1332,17 @@ int main(void)
                         if (enemies[row][col].hitFlashFrames > 0)
                             enemies[row][col].hitFlashFrames--;
 
+                        // Advance sprite animation frame
+                        enemies[row][col].animTimer += dt;
+                        if (enemies[row][col].animTimer >= ENEMY_ANIM_RATE)
+                        {
+                            enemies[row][col].animTimer -= ENEMY_ANIM_RATE;
+                            int fc = enemyFrameCount[enemies[row][col].type];
+                            if (fc > 1)
+                                enemies[row][col].currentFrame =
+                                    (enemies[row][col].currentFrame + 1) % fc;
+                        }
+
                         // Zigzag: apply triangle wave Y offset relative to baseY
                         if (enemies[row][col].type == ENEMY_ZIGZAG)
                         {
@@ -1536,6 +1605,15 @@ int main(void)
             // Decrement boss hit flash
             if (boss.hitFlashFrames > 0)
                 boss.hitFlashFrames--;
+
+            // --- Boss sprite animation ---
+            boss.animTimer += dt;
+            if (boss.animTimer >= BOSS_ANIM_RATE)
+            {
+                boss.animTimer -= BOSS_ANIM_RATE;
+                int bossFrameCount = (boss.ragePhase != 0) ? BOSS_FRAMES_RAGE : BOSS_FRAMES_NORMAL;
+                boss.currentFrame = (boss.currentFrame + 1) % bossFrameCount;
+            }
 
             // --- Attack phase cycling ---
             boss.phaseTimer += dt;
@@ -1835,6 +1913,50 @@ int main(void)
                 DrawText("[P]", iconX - 2, iconY + barH + 6, 14, DARKGRAY);
         }
 
+        // --- Mute icon: drawn every frame in every state (top-right, left of pause icon) ---
+        {
+            int muteX = WINDOW_WIDTH - 106; // left edge; sits left of the pause icon at -52
+            int muteY = 12;
+            int icoW  = 30;  // bounding box width
+            int icoH  = 22;  // bounding box height
+            // Semi-transparent pill background
+            DrawRectangleRounded((Rectangle){(float)(muteX - 5), (float)(muteY - 4),
+                                             (float)(icoW + 10), (float)(icoH + 8)},
+                                 0.5f, 8, (Color){0, 0, 0, 130});
+
+            Color speakerCol = isMuted ? (Color){220, 60, 60, 220} : (Color){200, 200, 200, 210};
+
+            // Speaker body: small filled rect (left side of speaker)
+            DrawRectangle(muteX, muteY + 7, 6, 8, speakerCol);
+            // Speaker cone: triangle pointing right
+            DrawTriangle(
+                (Vector2){(float)(muteX + 6),  (float)(muteY + 4)},
+                (Vector2){(float)(muteX + 6),  (float)(muteY + 18)},
+                (Vector2){(float)(muteX + 14), (float)(muteY + 11)},
+                speakerCol);
+
+            if (!isMuted)
+            {
+                // Sound waves: two partial circle outlines
+                DrawCircleLines(muteX + 6, muteY + 11, 7,  (Color){200, 200, 200, 170});
+                DrawCircleLines(muteX + 6, muteY + 11, 11, (Color){200, 200, 200, 110});
+            }
+            else
+            {
+                // Muted: diagonal strike-through across the icon
+                DrawLineEx((Vector2){(float)(muteX + 16), (float)(muteY + 3)},
+                           (Vector2){(float)(muteX + 2),  (float)(muteY + 19)},
+                           2.5f, (Color){255, 60, 60, 230});
+            }
+
+            // [M] key hint on hover
+            Vector2 mMouse = GetMousePosition();
+            Rectangle muteArea = {(float)(muteX - 5), (float)(muteY - 4),
+                                   (float)(icoW + 10), (float)(icoH + 8)};
+            if (CheckCollisionPointRec(mMouse, muteArea))
+                DrawText("[M]", muteX - 2, muteY + icoH + 6, 14, DARKGRAY);
+        }
+
         // Draw all living enemies
         for (int i = 0; i < numRows; i++)
         {
@@ -1843,39 +1965,48 @@ int main(void)
                 if (enemies[i][j].type == ENEMY_DEAD)
                     continue;
 
-                Vector2 pos = {(float)(enemies[i][j].x + sx), (float)(enemies[i][j].y + sy)};
-                Color tint = WHITE;
+                EnemyType etype = enemies[i][j].type;
+                int frame       = enemies[i][j].currentFrame;
+                bool flashing   = (enemies[i][j].hitFlashFrames > 0);
+                Vector2 pos     = {(float)(enemies[i][j].x + sx), (float)(enemies[i][j].y + sy)};
 
-                // Hit flash override: RED tint for a few frames after taking damage
-                bool flashing = (enemies[i][j].hitFlashFrames > 0);
+                // Per-type draw properties: offset, scale, tint
+                float offX  = 0.0f;
+                float scale = 0.37f;
+                Color tint  = flashing ? RED : WHITE;
 
-                switch (enemies[i][j].type)
+                switch (etype)
                 {
-                case ENEMY_DUMMY:
-                    DrawTextureEx(dummy, pos, 0, .37f, flashing ? RED : WHITE);
-                    break;
                 case ENEMY_BASIC:
-                    DrawTextureEx(basicTex, (Vector2){pos.x, pos.y}, 0, .37f, flashing ? RED : SKYBLUE);
+                    tint = flashing ? RED : SKYBLUE;
                     break;
                 case ENEMY_ZIGZAG:
-                    DrawTextureEx(zigzag, (Vector2){pos.x - 5, pos.y}, 0, 0.35f, flashing ? RED : WHITE);
+                    offX  = -5.0f;
+                    scale = 0.35f;
                     break;
                 case ENEMY_TANK:
-                    DrawTextureEx(tank, (Vector2){pos.x - 12, pos.y}, 0, 0.4f, flashing ? RED : WHITE);
-                    // Draw health bar above tank
+                    offX  = -12.0f;
+                    scale = 0.40f;
+                    // Health bar above tank
                     if (enemies[i][j].health < enemies[i][j].maxHealth)
                     {
-                        float barWidth = 40.0f;
-                        float barHeight = 4.0f;
-                        float healthRatio = (float)enemies[i][j].health / (float)enemies[i][j].maxHealth;
-                        DrawRectangle((int)pos.x + 5, (int)pos.y - 8, (int)barWidth, (int)barHeight, DARKGRAY);
-                        DrawRectangle((int)pos.x + 5, (int)pos.y - 8, (int)(barWidth * healthRatio), (int)barHeight, RED);
+                        float bW = 40.0f, bH = 4.0f;
+                        float hr = (float)enemies[i][j].health / (float)enemies[i][j].maxHealth;
+                        DrawRectangle((int)pos.x + 5, (int)pos.y - 8, (int)bW,      (int)bH, DARKGRAY);
+                        DrawRectangle((int)pos.x + 5, (int)pos.y - 8, (int)(bW*hr), (int)bH, RED);
                     }
                     break;
                 case ENEMY_RAPID:
-                    DrawTextureEx(rapidTex, (Vector2){pos.x - 5, pos.y}, 0, 0.35f, flashing ? RED : YELLOW);
+                    offX  = -5.0f;
+                    scale = 0.35f;
+                    tint  = flashing ? RED : YELLOW;
                     break;
+                default: break;
                 }
+
+                DrawTextureEx(enemyFrames[etype][frame],
+                              (Vector2){pos.x + offX, pos.y},
+                              0, scale, tint);
             }
         }
 
@@ -2030,12 +2161,22 @@ int main(void)
         // --- Boss fight draw ---
         if (state == BOSS_FIGHT && boss.active)
         {
-            // Draw boss sprite (boss.png), scaled to BOSS_WIDTH x BOSS_HEIGHT
+            // Select the active frame set: rage frames during ragePhase 1/2/3, normal otherwise
+            Texture2D *activeBossFrames = (boss.ragePhase != 0) ? bossFramesRage : bossFramesNormal;
+            int bossFrame = boss.currentFrame;
+            // Clamp frame index defensively (rage/normal sets have different counts)
+            int maxFrame = (boss.ragePhase != 0) ? BOSS_FRAMES_RAGE : BOSS_FRAMES_NORMAL;
+            if (bossFrame >= maxFrame) bossFrame = 0;
+
+            // Update source rect for the active frame's actual pixel dimensions
+            bossTexSrc.width  = (float)activeBossFrames[bossFrame].width;
+            bossTexSrc.height = (float)activeBossFrames[bossFrame].height;
+
             // Apply RED tint on hit-flash frames, otherwise draw normally
             Color bossTint = (boss.hitFlashFrames > 0) ? RED : WHITE;
             bossTexDst.x = boss.x + sx;
             bossTexDst.y = boss.y + sy;
-            DrawTexturePro(bossTex, bossTexSrc, bossTexDst, bossTexOrigin, 0.0f, bossTint);
+            DrawTexturePro(activeBossFrames[bossFrame], bossTexSrc, bossTexDst, bossTexOrigin, 0.0f, bossTint);
 
             // Boss health bar — full width at screen top
             float barW = (float)(WINDOW_WIDTH - 40);
@@ -2080,13 +2221,15 @@ int main(void)
     UnloadSound(sndEnemyMove);
     CloseAudioDevice();
     UnloadTexture(spaceshipTex);
-    UnloadTexture(dummy);
-    UnloadTexture(basicTex);
-    UnloadTexture(zigzag);
-    UnloadTexture(rapidTex);
-    UnloadTexture(tank);
     UnloadTexture(heartTex);
-    UnloadTexture(bossTex);
+    // Unload enemy frame textures
+    for (int t = 1; t < 6; t++)
+        for (int f = 0; f < enemyFrameCount[t]; f++)
+            UnloadTexture(enemyFrames[t][f]);
+    for (int f = 0; f < BOSS_FRAMES_NORMAL; f++)
+        UnloadTexture(bossFramesNormal[f]);
+    for (int f = 0; f < BOSS_FRAMES_RAGE; f++)
+        UnloadTexture(bossFramesRage[f]);
 
     CloseWindow();
     return 0;
