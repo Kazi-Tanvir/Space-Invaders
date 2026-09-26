@@ -596,9 +596,9 @@ int main(void)
     /* ------------------------------------------------------------------
      *  SCREEN SHAKE
      * ------------------------------------------------------------------ */
-    float shakeTimer = 0.0f;
-    int shakeOffsetX = 0;
-    int shakeOffsetY = 0;
+    float shakeTimer = 0.0f; // SCREEN SHAKE: remaining duration of the current shake
+    int shakeOffsetX = 0;    // SCREEN SHAKE: random X jitter applied to every draw call
+    int shakeOffsetY = 0;    // SCREEN SHAKE: random Y jitter applied to every draw call
 
     /* ================================================================
      *  MAIN GAME LOOP
@@ -625,14 +625,14 @@ int main(void)
          * ============================================================== */
         if (shakeTimer > 0.0f)
         {
-            shakeTimer -= dt;
-            shakeOffsetX = GetRandomValue(-3, 3);
-            shakeOffsetY = GetRandomValue(-3, 3);
+            shakeTimer -= dt;                     // SCREEN SHAKE: timer countdown
+            shakeOffsetX = GetRandomValue(-3, 3); // SCREEN SHAKE: random X offset
+            shakeOffsetY = GetRandomValue(-3, 3); // SCREEN SHAKE: random Y offset
         }
         else
         {
-            shakeOffsetX = 0;
-            shakeOffsetY = 0;
+            shakeOffsetX = 0; // SCREEN SHAKE: reset when timer ends
+            shakeOffsetY = 0; // SCREEN SHAKE: reset when timer ends
         }
 
         /* ==============================================================
@@ -993,7 +993,7 @@ int main(void)
                         enemyBullets[i].active = false;
                         player.lives--;
                         player.invincibleTimer = PLAYER_INVINCIBLE_TIME;
-                        shakeTimer = SHAKE_DURATION; // Screen shake on hit
+                        shakeTimer = SHAKE_DURATION; // SCREEN SHAKE TRIGGER: player hit
                         SpawnParticles(particles,
                                        player.position.x + player.width / 2.0f,
                                        PLAYER_Y + player.height / 2.0f, 3);
@@ -1193,8 +1193,7 @@ int main(void)
                 int hpThresholds[3] = {
                     (int)(boss.maxHealth * 0.75f),
                     (int)(boss.maxHealth * 0.50f),
-                    (int)(boss.maxHealth * 0.25f)
-                };
+                    (int)(boss.maxHealth * 0.25f)};
                 for (int t = 0; t < 3; t++)
                 {
                     if (!boss.minionSpawnFlags[t] && boss.health <= hpThresholds[t])
@@ -1281,7 +1280,7 @@ int main(void)
                         {
                             boss.active = false;
                             score += SCORE_BOSS;
-                            shakeTimer = 0.6f; // Big shake on boss death
+                            shakeTimer = 0.6f; // SCREEN SHAKE TRIGGER: boss death burst
                             // Massive particle burst
                             SpawnParticles(particles, boss.x + boss.width / 2.0f,
                                            boss.y + boss.height / 2.0f, 15);
@@ -1340,7 +1339,7 @@ int main(void)
                         bossBullets[i].active = false;
                         player.lives--;
                         player.invincibleTimer = PLAYER_INVINCIBLE_TIME;
-                        shakeTimer = SHAKE_DURATION;
+                        shakeTimer = SHAKE_DURATION; // SCREEN SHAKE TRIGGER: boss bullet hit
                         SpawnParticles(particles,
                                        player.position.x + player.width / 2.0f,
                                        PLAYER_Y + player.height / 2.0f, 3);
@@ -1360,7 +1359,7 @@ int main(void)
                         enemyBullets[i].active = false;
                         player.lives--;
                         player.invincibleTimer = PLAYER_INVINCIBLE_TIME;
-                        shakeTimer = SHAKE_DURATION;
+                        shakeTimer = SHAKE_DURATION; // SCREEN SHAKE TRIGGER: minion bullet hit
                     }
                 }
             }
@@ -1390,10 +1389,9 @@ int main(void)
         BeginDrawing();
         ClearBackground(BG_COLOR);
 
-        // Apply screen shake offset to all drawing via a translate trick:
-        // We simply add the offset to all draw positions below.
-        int sx = shakeOffsetX;
-        int sy = shakeOffsetY;
+        // SCREEN SHAKE APPLY: add the offset to all draw positions below.
+        int sx = shakeOffsetX; // SCREEN SHAKE: final X offset used while drawing
+        int sy = shakeOffsetY; // SCREEN SHAKE: final Y offset used while drawing
 
         /* --- Starfield (always visible) --- */
         for (int i = 0; i < STAR_TOTAL; i++)
@@ -1448,8 +1446,7 @@ int main(void)
             const char *menuItems[3] = {
                 "Level 1  —  Dummies & Basics",
                 "Level 2  —  Tanks & Zigzags",
-                "Level 3  —  Boss Fight"
-            };
+                "Level 3  —  Boss Fight"};
             Color menuColors[3] = {SKYBLUE, GREEN, ORANGE};
 
             for (int m = 0; m < 3; m++)
