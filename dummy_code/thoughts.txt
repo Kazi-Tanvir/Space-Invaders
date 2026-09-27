@@ -194,3 +194,21 @@ Add animation
 change the code so that no previous code is broken
 -dont change the sprites(images themselves) 
 -RESIZE OR ALIGN THEM SO THAT THEY MATCH THE PREVIOUS SIZE
+
+
+
+edits : [edit in tamim.c]
+1: movement -> 
+1.1 add WASD control along with arrow keys 
+1.2 the mouse should be clamped within the screen boundary [press x to release the clamp]
+
+2: sound -> 
+2.1 add bacground music that will the playing throughout entire game  [both menu and actual gameplay]
+2.2 also add sound when my spaceship is hit [generate or download sound]
+
+3: functionality:
+3.1 add a mute/unmute button at the top right corner [beside the pause button] this will be visible throughout game [both menu and actual gameplay]
+
+make sure you dont change anything before proper planning 
+during the plan make critcally analysis on why your code is correct and always think if it can be solves with simpler code and loigic and do minimal change 
+reason why your code will work than make a change
