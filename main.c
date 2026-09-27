@@ -2,6 +2,54 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#if defined(_WIN32)
+typedef struct tagWinRECT {
+    long left;
+    long top;
+    long right;
+    long bottom;
+} WinRECT;
+typedef struct tagWinPOINT {
+    long x;
+    long y;
+} WinPOINT;
+__declspec(dllimport) int __stdcall GetClientRect(void *hWnd, WinRECT *lpRect);
+__declspec(dllimport) int __stdcall ClientToScreen(void *hWnd, WinPOINT *lpPoint);
+__declspec(dllimport) int __stdcall ClipCursor(const WinRECT *lpRect);
+
+static void UpdateMouseClamping(bool enable)
+{
+    static bool isClipped = false;
+    if (enable && IsWindowFocused())
+    {
+        void *hwnd = GetWindowHandle();
+        if (hwnd)
+        {
+            WinRECT rc;
+            if (GetClientRect(hwnd, &rc))
+            {
+                WinPOINT p1 = { rc.left, rc.top };
+                WinPOINT p2 = { rc.right, rc.bottom };
+                ClientToScreen(hwnd, &p1);
+                ClientToScreen(hwnd, &p2);
+                WinRECT clip = { p1.x, p1.y, p2.x, p2.y };
+                ClipCursor(&clip);
+                isClipped = true;
+            }
+        }
+    }
+    else
+    {
+        if (isClipped)
+        {
+            ClipCursor(NULL);
+            isClipped = false;
+        }
+    }
+}
+#else
+static void UpdateMouseClamping(bool enable) { (void)enable; }
+#endif
 
 // Window settings
 #define WINDOW_WIDTH 1000
@@ -1008,18 +1056,28 @@ int main(void)
     Vector2 origin = {0, 0};
 
     // Game loop
+    GetFrameTime(); // Clear any delta-time accumulated during startup asset loading
     while (!WindowShouldClose() && !shouldExit)
     {
         float dt = GetFrameTime();
+        if (dt > 0.1f || dt <= 0.0f)
+            dt = 0.01667f;
 
         // Pump the looping background music every frame (required by raylib)
         UpdateMusicStream(bgMusic);
 
-        // --- Cursor visibility: hidden during gameplay, visible everywhere else ---
+        // --- Cursor visibility & hardware mouse clamping ---
+        // Clamped & hidden during active gameplay; freed & visible everywhere else.
         if (state == PLAYING || state == BOSS_FIGHT)
+        {
             HideCursor();
+            UpdateMouseClamping(true);
+        }
         else
+        {
             ShowCursor();
+            UpdateMouseClamping(false);
+        }
 
         // --- M key: toggle mute (works in all states) ---
         if (IsKeyPressed(KEY_M))
@@ -1483,11 +1541,14 @@ int main(void)
 
             // --- Player movement ---
             // Mouse: snap to cursor only when mouse has actually moved this frame.
+            // Clamped to [0, WINDOW_WIDTH] so edge movement never freezes at borders.
             // When mouse is stationary, keyboard has full control (no conflict).
             {
                 static int lastMouseX = -1;
                 int curMouseX = GetMouseX();
-                if (IsCursorOnScreen() && curMouseX != lastMouseX)
+                if (curMouseX < 0) curMouseX = 0;
+                if (curMouseX > WINDOW_WIDTH) curMouseX = WINDOW_WIDTH;
+                if (curMouseX != lastMouseX)
                 {
                     player.position.x = (float)curMouseX - player.width / 2.0f;
                     lastMouseX = curMouseX;
@@ -2476,8 +2537,8 @@ int main(void)
                 // Level
                 DrawText(TextFormat("%d", leaderboard[i].level), colLevelX, rowY, 24, c);
             }
-            int escW = MeasureText("BACKSPACE / ESC to go back", 18);
-            DrawText("BACKSPACE / ESC to go back",
+            int escW = MeasureText("BACKSPACE to go back", 18);
+            DrawText("BACKSPACE to go back",
                      WINDOW_WIDTH / 2 - escW / 2, 565, 18, LIGHTGRAY);
         }
 
@@ -2519,7 +2580,7 @@ int main(void)
             DrawText("- Mute Audio        : M (anytime)", 100, lineY, 20, bodyC); lineY += lineGap;
             DrawText("- Menu Navigation   : UP / DOWN arrow keys, or hover with the mouse", 100, lineY, 20, bodyC); lineY += lineGap;
             DrawText("- Confirm Selection : ENTER, or click the highlighted item", 100, lineY, 20, bodyC); lineY += lineGap;
-            DrawText("- Back (in menus)   : BACKSPACE / ESC, or click the < arrow", 100, lineY, 20, bodyC); lineY += lineGap;
+            DrawText("- Back (in menus)   : BACKSPACE, or click the < arrow", 100, lineY, 20, bodyC); lineY += lineGap;
             DrawText("- Scroll in Menus   : Mouse Wheel, UP / DOWN arrows, Page Up / Down", 100, lineY, 20, bodyC); lineY += lineGap + 16;
 
             // OBJECTIVE section
@@ -2568,8 +2629,8 @@ int main(void)
             DrawRectangle(0, WINDOW_HEIGHT - 55, WINDOW_WIDTH, 55, (Color){8, 10, 22, 230});
             DrawLine(0, WINDOW_HEIGHT - 55, WINDOW_WIDTH, WINDOW_HEIGHT - 55, (Color){255, 255, 255, 40});
 
-            int backW = MeasureText("BACKSPACE / ESC to go back", 18);
-            DrawText("BACKSPACE / ESC to go back",
+            int backW = MeasureText("BACKSPACE to go back", 18);
+            DrawText("BACKSPACE to go back",
                      WINDOW_WIDTH / 2 - backW / 2, WINDOW_HEIGHT - 38, 18, LIGHTGRAY);
             DrawText("Scroll: Wheel / [UP] [DOWN]", WINDOW_WIDTH - 240, WINDOW_HEIGHT - 36, 15, (Color){150, 160, 180, 200});
         }
@@ -2641,8 +2702,8 @@ int main(void)
             DrawRectangleRoundedLines((Rectangle){(float)cardX, (float)curY, (float)cardW, (float)card3H}, 0.12f, 8, (Color){190, 150, 255, 120});
             DrawRectangle(cardX, curY, 5, card3H, (Color){190, 150, 255, 255});
             DrawText("ART & RESOURCES", cardX + 24, curY + 14, 18, (Color){210, 180, 255, 255});
-            DrawText("Original game assets and resources produced by the", cardX + 24, curY + 40, 18, (Color){235, 240, 250, 255});
-            DrawText("development team utilizing Generative AI.", cardX + 24, curY + 66, 18, (Color){235, 240, 250, 255});
+            DrawText("Original game assets and resources Heavily inspired from the classic", cardX + 24, curY + 40, 18, (Color){235, 240, 250, 255});
+            DrawText("Space Invaders and made by the development team utilizing Generative AI", cardX + 24, curY + 66, 18, (Color){235, 240, 250, 255});
             curY += card3H + 16;
 
             // --- Card 4: Special Effects (FX) & Technical Highlights ---
@@ -2713,8 +2774,8 @@ int main(void)
             DrawRectangle(0, WINDOW_HEIGHT - 55, WINDOW_WIDTH, 55, (Color){8, 10, 22, 230});
             DrawLine(0, WINDOW_HEIGHT - 55, WINDOW_WIDTH, WINDOW_HEIGHT - 55, (Color){255, 255, 255, 40});
 
-            int backW = MeasureText("BACKSPACE / ESC to go back", 18);
-            DrawText("BACKSPACE / ESC to go back",
+            int backW = MeasureText("BACKSPACE to go back", 18);
+            DrawText("BACKSPACE to go back",
                      WINDOW_WIDTH / 2 - backW / 2, WINDOW_HEIGHT - 38, 18, LIGHTGRAY);
             DrawText("Scroll: Wheel / [UP] [DOWN]", WINDOW_WIDTH - 240, WINDOW_HEIGHT - 36, 15, (Color){150, 160, 180, 200});
         }
@@ -2857,6 +2918,7 @@ int main(void)
     for (int f = 0; f < BOSS_FRAMES_RAGE; f++)
         UnloadTexture(bossFramesRage[f]);
 
+    UpdateMouseClamping(false);
     CloseWindow();
     return 0;
 }
