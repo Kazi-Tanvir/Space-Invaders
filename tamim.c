@@ -275,7 +275,7 @@ static const LevelConfig levels[NUM_LEVELS] = {
     // Level 1: 4 rows, 3 enemy types, normal speed
     {
         .numRows = 4,
-        .rowTypes = {ENEMY_TANK, ENEMY_RAPID, ENEMY_BASIC, ENEMY_TANK},
+        .rowTypes = {ENEMY_TANK, ENEMY_BASIC, ENEMY_RAPID, ENEMY_BASIC},
         .speedMultiplier = 1.0f,
     },
     // Level 2: 7 rows, all 5 enemy types, 1.4x speed
@@ -875,6 +875,8 @@ int main(void)
     else
         bossFramesRage[3] = LoadTrimmedSprite("resources/boss-rage_frame4.png", &bossSrcRectRage[3]);
 
+    Texture2D muteIcon = LoadTexture("resources/mute.png");
+    Texture2D unmuteIcon = LoadTexture("resources/unmute.png");
     // Load sound effects
     Sound sndShoot = LoadSound("resources/shoot.wav");          // player fires
     Sound sndEnemyDie = LoadSound("resources/enemy_die.wav");   // enemy killed
@@ -1268,7 +1270,7 @@ int main(void)
         // --- How to play screen (scrollable) ---
         else if (state == HOW_TO_PLAY)
         {
-            float maxScroll = 320.0f;
+            float maxScroll = 350.0f;
             float wheel = GetMouseWheelMove();
             if (wheel != 0.0f)
                 howToPlayScrollY -= wheel * 45.0f;
@@ -1516,7 +1518,7 @@ int main(void)
             if (player.position.x > PLAYER_MAX_X)
                 player.position.x = PLAYER_MAX_X;
 
-            if (IsKeyPressed(KEY_R))
+            if (IsKeyPressed(KEY_R) || IsMouseButtonPressed(MOUSE_BUTTON_RIGHT))
             {
                 player.bulletsLeft = 25;
             }
@@ -2205,7 +2207,7 @@ int main(void)
             DrawText(bulletText, WINDOW_WIDTH - bw - 20, WINDOW_HEIGHT - 40, 25, (player.bulletsLeft == 0) ? RED : WHITE);
             if (player.bulletsLeft == 0)
             {
-                const char *reloadText = "Press 'R' to reload";
+                const char *reloadText = "Press 'R' or Right-Click to reload";
                 int rw = MeasureText(reloadText, 20);
                 DrawText(reloadText, WINDOW_WIDTH - rw - 20, WINDOW_HEIGHT - 70, 20, RED);
             }
@@ -2531,6 +2533,8 @@ int main(void)
             lineY += lineGap;
             DrawText("- Shoot             : SPACE bar or LEFT mouse click", 100, lineY, 20, bodyC);
             lineY += lineGap;
+            DrawText("- Reload            : R key or RIGHT mouse click", 100, lineY, 20, bodyC);
+            lineY += lineGap;
             DrawText("- Pause             : P or ESC (while playing)", 100, lineY, 20, bodyC);
             lineY += lineGap;
             DrawText("- Mute Audio        : M (anytime) or click the speaker icon (top-right)", 100, lineY, 20, bodyC);
@@ -2845,7 +2849,7 @@ int main(void)
             DrawTexturePro(activeBossFrames[bossFrame], src, dst, (Vector2){0, 0}, 0.0f, bossTint);
 
             // Boss health bar — centered 620px
-            float barW = 620.0f;
+            float barW = 550.0f;
             float barX = WINDOW_WIDTH / 2.0f - barW / 2.0f;
             float hpRatio = (float)boss.health / (float)boss.maxHealth;
             DrawRectangle((int)barX, 12, (int)barW, 12, DARKGRAY);
@@ -2871,41 +2875,24 @@ int main(void)
             int muteY = 12;
             int icoW = 45; // bounding box width
             int icoH = 33; // bounding box height
+            Rectangle pillRect = {(float)(muteX - 8), (float)(muteY - 6),
+                                  (float)(icoW + 15), (float)(icoH + 12)};
             // Semi-transparent pill background
-            DrawRectangleRounded((Rectangle){(float)(muteX - 8), (float)(muteY - 6),
-                                             (float)(icoW + 15), (float)(icoH + 12)},
-                                 0.5f, 8, (Color){0, 0, 0, 130});
+            DrawRectangleRounded(pillRect, 0.5f, 8, (Color){0, 0, 0, 130});
 
-            Color speakerCol = isMuted ? (Color){220, 60, 60, 220} : (Color){200, 200, 200, 210};
-
-            // Speaker body: small filled rect
-            DrawRectangle(muteX, muteY + 10, 9, 12, speakerCol);
-            // Speaker cone: triangle pointing right
-            DrawTriangle(
-                (Vector2){(float)(muteX + 9), (float)(muteY + 6)},
-                (Vector2){(float)(muteX + 9), (float)(muteY + 27)},
-                (Vector2){(float)(muteX + 21), (float)(muteY + 16)},
-                speakerCol);
-
-            if (!isMuted)
-            {
-                // Sound waves: two partial circle outlines
-                DrawCircleLines(muteX + 9, muteY + 16, 10, (Color){200, 200, 200, 170});
-                DrawCircleLines(muteX + 9, muteY + 16, 16, (Color){200, 200, 200, 110});
-            }
-            else
-            {
-                // Muted: diagonal strike-through across the icon
-                DrawLineEx((Vector2){(float)(muteX + 24), (float)(muteY + 4)},
-                           (Vector2){(float)(muteX + 3), (float)(muteY + 28)},
-                           3.5f, (Color){255, 60, 60, 230});
-            }
+            Texture2D tex = isMuted ? muteIcon : unmuteIcon;
+            float iconDrawW = 32.0f;
+            float iconDrawH = 32.0f;
+            float drawX = pillRect.x + (pillRect.width - iconDrawW) / 2.0f;
+            float drawY = pillRect.y + (pillRect.height - iconDrawH) / 2.0f;
+            DrawTexturePro(tex,
+                           (Rectangle){0, 0, (float)tex.width, (float)tex.height},
+                           (Rectangle){drawX, drawY, iconDrawW, iconDrawH},
+                           (Vector2){0, 0}, 0.0f, WHITE);
 
             // [M] key hint on hover
             Vector2 mMouse = GetMousePosition();
-            Rectangle muteArea = {(float)(muteX - 8), (float)(muteY - 6),
-                                  (float)(icoW + 15), (float)(icoH + 12)};
-            if (CheckCollisionPointRec(mMouse, muteArea))
+            if (CheckCollisionPointRec(mMouse, pillRect))
                 DrawText("[M]", muteX, muteY + icoH + 9, 18, DARKGRAY);
         }
 
@@ -2936,6 +2923,8 @@ int main(void)
     UnloadTexture(heartTex);
     UnloadTexture(loadingBackground);
     UnloadTexture(menuBackground);
+    UnloadTexture(muteIcon);
+    UnloadTexture(unmuteIcon);
     // Unload enemy frame textures
     for (int t = 1; t < 6; t++)
         for (int f = 0; f < enemyFrameCount[t]; f++)

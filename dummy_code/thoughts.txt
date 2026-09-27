@@ -212,3 +212,6 @@ edits : [edit in tamim.c]
 make sure you dont change anything before proper planning 
 during the plan make critcally analysis on why your code is correct and always think if it can be solves with simpler code and loigic and do minimal change 
 reason why your code will work than make a change
+
+
+a
