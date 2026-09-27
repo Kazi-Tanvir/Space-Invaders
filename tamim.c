@@ -1011,12 +1011,20 @@ int main(void)
         // Pump the looping background music every frame (required by raylib)
         UpdateMusicStream(bgMusic);
 
-        // --- Cursor visibility ---
-        // Hidden during active gameplay; visible elsewhere.
-        if (state == PLAYING || state == BOSS_FIGHT)
-            HideCursor();
+        // --- Cursor lock & visibility (cross-platform for Windows, macOS, Linux) ---
+        // Locks cursor inside window and hides it during active gameplay.
+        // Unlocks and shows cursor when unstuck (X key), paused, in menus, or unfocused.
+        bool shouldLockMouse = (state == PLAYING || state == BOSS_FIGHT) && mouseClampEnabled && IsWindowFocused();
+        if (shouldLockMouse)
+        {
+            if (!IsCursorHidden())
+                DisableCursor();
+        }
         else
-            ShowCursor();
+        {
+            if (IsCursorHidden())
+                EnableCursor();
+        }
 
         // --- M key or mute-icon click: toggle mute (works in all states) ---
         if (IsKeyPressed(KEY_M))
@@ -1137,7 +1145,10 @@ int main(void)
                              &player, &shootCooldown, enemies, &numRows, &enemyCount,
                              &enemyShootTimer, &dropTimer, playerBullets, enemyBullets,
                              &boss, bossBullets))
+                {
+                    mouseClampEnabled = true;
                     state = (GameState)ls;
+                }
             }
             else if (mchoice == 2)
             {
@@ -1175,6 +1186,7 @@ int main(void)
                 ResetLevel(enemies, &enemyCount, &numRows, &levels[0],
                            playerBullets, enemyBullets, &player,
                            &enemyShootTimer, &dropTimer, &score);
+                mouseClampEnabled = true;
                 state = PLAYING;
             }
             else if (lchoice == 1)
@@ -1183,6 +1195,7 @@ int main(void)
                 ResetLevel(enemies, &enemyCount, &numRows, &levels[1],
                            playerBullets, enemyBullets, &player,
                            &enemyShootTimer, &dropTimer, &score);
+                mouseClampEnabled = true;
                 state = PLAYING;
             }
             else if (lchoice == 2)
@@ -1194,6 +1207,7 @@ int main(void)
                 for (int i = 0; i < MAX_BOSS_BULLETS; i++)
                     bossBullets[i].active = false;
                 ResetBoss(&boss);
+                mouseClampEnabled = true;
                 state = BOSS_FIGHT;
             }
             else if (lchoice == 3)
@@ -1455,9 +1469,11 @@ int main(void)
             }
         }
 
-        // --- ESC or P pauses (auto-saves state to savegame.txt) ---
+        // --- ESC or P or pause-icon click: pauses (auto-saves state to savegame.txt) ---
         else if ((state == PLAYING || state == BOSS_FIGHT) &&
-                 (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_P)))
+                 (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_P) ||
+                  (!muteClicked && IsMouseButtonPressed(MOUSE_BUTTON_LEFT) &&
+                   CheckCollisionPointRec(GetMousePosition(), (Rectangle){(float)(WINDOW_WIDTH - 58), 8.0f, 34.0f, 30.0f}))))
         {
             pausedFrom = state;
             SaveGame("savegame.txt", (int)state, currentLevel, score,
@@ -2201,15 +2217,71 @@ int main(void)
 
             DrawText(TextFormat("ENEMIES: %d", enemyCount), 20, 80, 25, RED);
 
-            // Bullets left
-            const char *bulletText = TextFormat("BULLETS: %d", player.bulletsLeft);
-            int bw = MeasureText(bulletText, 25);
-            DrawText(bulletText, WINDOW_WIDTH - bw - 20, WINDOW_HEIGHT - 40, 25, (player.bulletsLeft == 0) ? RED : WHITE);
+            // Bullets left indicator (bottom-right circle)
+            float circleRadius = 26.0f;
+            float circleX = WINDOW_WIDTH - 46.0f;
+            float circleY = WINDOW_HEIGHT - 40.0f;
+
+            // Fill fades from full white (when 25 bullets) to transparent (when 0)
+            float bulletRatio = (float)player.bulletsLeft / 25.0f;
+            if (bulletRatio < 0.0f) bulletRatio = 0.0f;
+            if (bulletRatio > 1.0f) bulletRatio = 1.0f;
+            unsigned char fillAlpha = (unsigned char)(bulletRatio * 255.0f);
+
+            if (fillAlpha > 0)
+            {
+                DrawCircle((int)circleX, (int)circleY, circleRadius - 1.5f, (Color){255, 255, 255, fillAlpha});
+            }
+
+            // White border
+            DrawRing((Vector2){circleX, circleY}, circleRadius - 2.5f, circleRadius, 0.0f, 360.0f, 48, WHITE);
+
+            // Number at center
+            const char *numStr = TextFormat("%d", player.bulletsLeft);
+            int numFontSize = 22;
+            int numW = MeasureText(numStr, numFontSize);
+            int numX = (int)(circleX - numW / 2.0f);
+            int numY = (int)(circleY - numFontSize / 2.0f);
+
+            Color numColor;
+            if (player.bulletsLeft == 0)
+            {
+                numColor = RED;
+            }
+            else if (bulletRatio > 0.45f)
+            {
+                numColor = (Color){15, 15, 25, 255}; // dark contrast on white fill
+            }
+            else
+            {
+                numColor = WHITE; // light contrast on transparent/dark fill
+            }
+
+            if (bulletRatio <= 0.45f && player.bulletsLeft > 0)
+            {
+                DrawText(numStr, numX + 1, numY + 1, numFontSize, (Color){0, 0, 0, 200});
+            }
+            DrawText(numStr, numX, numY, numFontSize, numColor);
+
             if (player.bulletsLeft == 0)
             {
                 const char *reloadText = "Press 'R' or Right-Click to reload";
                 int rw = MeasureText(reloadText, 20);
-                DrawText(reloadText, WINDOW_WIDTH - rw - 20, WINDOW_HEIGHT - 70, 20, RED);
+                int rx = WINDOW_WIDTH / 2 - rw / 2;
+                int ry = WINDOW_HEIGHT / 2 - 10;
+                DrawText(reloadText, rx + 1, ry + 1, 20, (Color){0, 0, 0, 180});
+                DrawText(reloadText, rx, ry, 20, RED);
+            }
+
+            // Mouse unstuck notification banner
+            if (!mouseClampEnabled)
+            {
+                int unstuckY = (state == BOSS_FIGHT) ? 35 : 18;
+                const char *unstuckText = "MOUSE UNSTUCK [Press X to lock]";
+                int uw = MeasureText(unstuckText, 16);
+                int ux = WINDOW_WIDTH / 2 - uw / 2;
+                DrawText(unstuckText, ux + 1, unstuckY + 1, 16, (Color){0, 0, 0, 180});
+                DrawText(unstuckText, ux, unstuckY, 16, YELLOW);
             }
         }
 
@@ -2934,6 +3006,7 @@ int main(void)
     for (int f = 0; f < BOSS_FRAMES_RAGE; f++)
         UnloadTexture(bossFramesRage[f]);
 
+    EnableCursor();
     CloseWindow();
     return 0;
 }
