@@ -2,61 +2,13 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
-#if defined(_WIN32)
-typedef struct tagWinRECT {
-    long left;
-    long top;
-    long right;
-    long bottom;
-} WinRECT;
-typedef struct tagWinPOINT {
-    long x;
-    long y;
-} WinPOINT;
-__declspec(dllimport) int __stdcall GetClientRect(void *hWnd, WinRECT *lpRect);
-__declspec(dllimport) int __stdcall ClientToScreen(void *hWnd, WinPOINT *lpPoint);
-__declspec(dllimport) int __stdcall ClipCursor(const WinRECT *lpRect);
 
-static void UpdateMouseClamping(bool enable)
-{
-    static bool isClipped = false;
-    if (enable && IsWindowFocused())
-    {
-        void *hwnd = GetWindowHandle();
-        if (hwnd)
-        {
-            WinRECT rc;
-            if (GetClientRect(hwnd, &rc))
-            {
-                WinPOINT p1 = { rc.left, rc.top };
-                WinPOINT p2 = { rc.right, rc.bottom };
-                ClientToScreen(hwnd, &p1);
-                ClientToScreen(hwnd, &p2);
-                WinRECT clip = { p1.x, p1.y, p2.x, p2.y };
-                ClipCursor(&clip);
-                isClipped = true;
-            }
-        }
-    }
-    else
-    {
-        if (isClipped)
-        {
-            ClipCursor(NULL);
-            isClipped = false;
-        }
-    }
-}
-#else
-static void UpdateMouseClamping(bool enable) { (void)enable; }
-#endif
-
-// Window settings
+// Window
 #define WINDOW_WIDTH 1000
 #define WINDOW_HEIGHT 800
 #define BG_COLOR (Color){8, 10, 22, 255}
 
-// Starfield settings
+// Starfield
 #define STAR_COUNT_FAR 150
 #define STAR_COUNT_MID 80
 #define STAR_COUNT_NEAR 30
@@ -65,9 +17,9 @@ static void UpdateMouseClamping(bool enable) { (void)enable; }
 #define STAR_SPEED_MID 70.0f
 #define STAR_SPEED_NEAR 160.0f
 
-// Player settings
-#define PLAYER_START_X (WINDOW_WIDTH / 2 - 60) // Centered horizontally
-#define PLAYER_Y (WINDOW_HEIGHT - 100)         // Positioned near the bottom
+// Player
+#define PLAYER_START_X (WINDOW_WIDTH / 2 - 60) // centered horizontally
+#define PLAYER_Y (WINDOW_HEIGHT - 100)         // spawn height
 #define PLAYER_SPEED 300.0f
 #define PLAYER_WIDTH 120
 #define PLAYER_HEIGHT 60
@@ -76,55 +28,53 @@ static void UpdateMouseClamping(bool enable) { (void)enable; }
 #define PLAYER_INVINCIBLE_TIME 1.5f
 #define SHAKE_DURATION 0.3f
 
-// Player bullet settings
+// Player bullets
 #define MAX_PLAYER_BULLETS 25
 #define BULLET_SPEED 1000.0f
 #define BULLET_WIDTH 5
 #define BULLET_HEIGHT 15
 #define PLAYER_SHOOT_COOLDOWN 0.3f
 
-// Enemy matrix layout
-#define MAX_ENEMY_ROWS 8 // max rows any level can have (sized for level 2's 7 rows)
+// Enemy formation
+#define MAX_ENEMY_ROWS 8
 #define ENEMY_COLS 11
-#define ENEMY_SPACING_X 55 // horizontal spacing (50px enemy + 5px gap)
-#define ENEMY_SPACING_Y 60 // vertical spacing between rows
-#define ENEMY_HITBOX 50    // hitbox matches visual size
-#define ENEMY_START_X 90   // left edge of formation
-#define ENEMY_START_Y 100  // top edge of formation
+#define ENEMY_SPACING_X 55
+#define ENEMY_SPACING_Y 60
+#define ENEMY_HITBOX 50
+#define ENEMY_START_X 90
+#define ENEMY_START_Y 100
 #define ENEMY_BOUND_LEFT 10
 #define ENEMY_BOUND_RIGHT (WINDOW_WIDTH - ENEMY_HITBOX - 10)
 #define ENEMY_DROP_STEP 20.0f
-#define ENEMY_DROP_INTERVAL 8.0f // seconds between Y-drops
+#define ENEMY_DROP_INTERVAL 8.0f
 
-// Enemy sprite animation
-#define ENEMY_ANIM_RATE  0.20f  // seconds per animation frame
-#define ENEMY_MAX_FRAMES 2      // max frames stored per enemy type
+// Enemy animation
+#define ENEMY_ANIM_RATE 0.20f
+#define ENEMY_MAX_FRAMES 2
 
-// Level system
+// Levels
 #define NUM_LEVELS 3
 
-// Zigzag settings
-#define ZIGZAG_PERIOD 2.0f     // seconds for one full triangle wave cycle
-#define ZIGZAG_AMPLITUDE 15.0f // vertical oscillation in pixels (peak to center)
+// Zigzag
+#define ZIGZAG_PERIOD 2.0f
+#define ZIGZAG_AMPLITUDE 15.0f
 
-// Enemy bullet settings
+// Enemy bullets
 #define MAX_ENEMY_BULLETS 10
 #define ENEMY_BULLET_SPEED 300.0f
 #define ENEMY_BULLET_WIDTH 5
 #define ENEMY_BULLET_HEIGHT 15
 #define ENEMY_SHOOT_COOLDOWN 0.5f
 
-// Explosion effect settings
+// Effects
 #define EXPLOSION_GROW_RATE 6.0f
 #define EXPLOSION_MAX_TIME 1.0f
 #define EXPLOSION_SCALE 12.0f
 #define EXPLOSION_OFFSET 15
-
-// Particle effect settings
 #define MAX_PARTICLES 100
 #define PARTICLE_LIFETIME 0.5f
 
-// Boss settings
+// Boss
 #define BOSS_WIDTH 300
 #define BOSS_HEIGHT 300
 #define BOSS_MAX_HEALTH 100
@@ -137,39 +87,34 @@ static void UpdateMouseClamping(bool enable) { (void)enable; }
 #define BOSS_RAPID_COOLDOWN 0.2f
 #define BOSS_STAR_COOLDOWN 0.6f
 #define BOSS_CIRCLE_COOLDOWN 1.5f
-#define BOSS_PHASE_ATTACK 3.0f  // seconds per attack phase
-#define BOSS_PHASE_PAUSE 1.5f   // seconds pause between attacks
-#define BOSS_MINION_WAVE1_HP 35 // spawn BASIC minions at this HP
-#define BOSS_MINION_WAVE2_HP 20 // spawn RAPID minions at this HP
-#define BOSS_MINION_COLS 5      // enemies per minion wave
-// Bullet fire-point: center-X, ~60% down the sprite (crab body/mouth)
-#define BOSS_BULLET_Y_RATIO   0.60f
-// Rage mode: triggered at 25% HP — boss rushes to mid-screen, not below
-#define BOSS_RAGE_HP_THRESHOLD (BOSS_MAX_HEALTH / 4)
-#define BOSS_RAGE_SPEED_MUL   2.5f
-#define BOSS_RAGE_DURATION    3.0f
-// Y target = mid-screen, ensuring boss stays in upper half
-#define BOSS_RAGE_TARGET_Y    (WINDOW_HEIGHT / 2.0f - BOSS_HEIGHT / 2.0f)
-// Hitbox trim: crab body is in upper ~55% of sprite; 18% horizontal margin each side
-// Keeps collision aligned with the visible shell, not the transparent leg/claw area
-#define BOSS_HIT_X_MARGIN  (BOSS_WIDTH  * 0.18f)  // trim from each side
-#define BOSS_HIT_Y_OFFSET  (BOSS_HEIGHT * 0.08f)  // small top gap (antenna space)
-#define BOSS_HIT_WIDTH     (BOSS_WIDTH  - BOSS_HIT_X_MARGIN * 2)
-#define BOSS_HIT_HEIGHT    (BOSS_HEIGHT * 0.50f)   // only the solid body, no legs
+#define BOSS_PHASE_ATTACK 3.0f
+#define BOSS_PHASE_PAUSE 1.5f
+#define BOSS_MINION_WAVE1_HP 35
+#define BOSS_MINION_WAVE2_HP 20
+#define BOSS_MINION_COLS 5
+#define BOSS_BULLET_Y_RATIO 0.60f
+#define BOSS_RAGE_HP_THRESHOLD (BOSS_MAX_HEALTH / 3)
+#define BOSS_RAGE_SPEED_MUL 2.5f
+#define BOSS_RAGE_DURATION 4.0f
+#define BOSS_RAGE_TARGET_Y (WINDOW_HEIGHT / 2.0f - BOSS_HEIGHT / 2.0f)
+#define BOSS_HIT_X_MARGIN (BOSS_WIDTH * 0.18f)
+#define BOSS_HIT_Y_OFFSET (BOSS_HEIGHT * 0.08f)
+#define BOSS_HIT_WIDTH (BOSS_WIDTH - BOSS_HIT_X_MARGIN * 2)
+#define BOSS_HIT_HEIGHT (BOSS_HEIGHT * 0.50f)
 
-// Boss sprite animation
-#define BOSS_FRAMES_NORMAL 5          // normal mode animation frames
-#define BOSS_FRAMES_RAGE   4          // rage mode animation frames
-#define BOSS_ANIM_RATE     0.15f      // seconds per frame
+// Boss animation
+#define BOSS_FRAMES_NORMAL 5
+#define BOSS_FRAMES_RAGE 4
+#define BOSS_ANIM_RATE 0.15f
 
-// Score values per enemy type
+// Enemy score values
 #define SCORE_DUMMY 5
 #define SCORE_BASIC 10
 #define SCORE_ZIGZAG 15
 #define SCORE_RAPID 20
 #define SCORE_TANK 30
 
-//  Structs
+// Data types
 
 typedef struct Star
 {
@@ -187,6 +132,7 @@ typedef struct Player
     int height;
     int lives;
     float invincibleTimer;
+    int bulletsLeft;
 } Player;
 
 typedef struct Bullet
@@ -221,8 +167,8 @@ typedef struct Enemy
     int hitFlashFrames; // >0 means draw with RED tint
     bool active;
     // Sprite animation
-    float animTimer;    // time accumulator for frame cycling
-    int   currentFrame; // current frame index
+    float animTimer;  // time accumulator for frame cycling
+    int currentFrame; // current frame index
 } Enemy;
 
 typedef enum GameState
@@ -283,12 +229,12 @@ typedef struct Boss
     bool minionsSpawned2; // true after wave 2 (RAPID) spawned
     bool active;
     // Rage mode
-    int   ragePhase;     // 0=normal,1=dash-to-mid,2=raging,3=returning
-    float rageTimer;     // time spent at mid-screen during rage
-    bool  rageTriggered; // one-shot flag
+    int ragePhase;      // 0=normal,1=dash-to-mid,2=raging,3=returning
+    float rageTimer;    // time spent at mid-screen during rage
+    bool rageTriggered; // one-shot flag
     // Sprite animation
-    float animTimer;     // accumulates dt for frame cycling
-    int   currentFrame;  // current frame index (bounded by active frame set)
+    float animTimer;  // accumulates dt for frame cycling
+    int currentFrame; // current frame index (bounded by active frame set)
 } Boss;
 
 // Loading screen
@@ -329,7 +275,7 @@ static const LevelConfig levels[NUM_LEVELS] = {
     // Level 1: 4 rows, 3 enemy types, normal speed
     {
         .numRows = 4,
-        .rowTypes = {ENEMY_TANK, ENEMY_RAPID, ENEMY_BASIC, ENEMY_BASIC},
+        .rowTypes = {ENEMY_TANK, ENEMY_BASIC, ENEMY_RAPID, ENEMY_BASIC},
         .speedMultiplier = 1.0f,
     },
     // Level 2: 7 rows, all 5 enemy types, 1.4x speed
@@ -368,8 +314,6 @@ static int GetEnemyScore(int type)
     }
 }
 
-// Reset single enemy into a fresh state — positions computed from row/col
-// speedMul scales the base speed for the current level (1.0 = normal, 1.4 = level 2, etc.)
 static void InitEnemy(Enemy *e, int row, int col, int type, float speedMul)
 {
     e->type = type;
@@ -382,7 +326,7 @@ static void InitEnemy(Enemy *e, int row, int col, int type, float speedMul)
     e->hitFlashFrames = 0;
     e->active = true;
     // Stagger animation so enemies in the grid don't all flash in sync
-    e->animTimer    = (float)GetRandomValue(0, (int)(ENEMY_ANIM_RATE * 100)) / 100.0f;
+    e->animTimer = (float)GetRandomValue(0, (int)(ENEMY_ANIM_RATE * 100)) / 100.0f;
     e->currentFrame = GetRandomValue(0, 1);
     switch (type)
     {
@@ -423,8 +367,6 @@ static void InitEnemy(Enemy *e, int row, int col, int type, float speedMul)
     }
 }
 
-// Initialize/reset the full enemy matrix for a given level.
-// Also clears rows beyond the level's numRows to prevent stale data.
 static void ResetLevel(Enemy enemies[][ENEMY_COLS], int *enemyCount, int *numRows,
                        const LevelConfig *level, Bullet playerBullets[],
                        Bullet enemyBullets[], Player *player,
@@ -437,6 +379,7 @@ static void ResetLevel(Enemy enemies[][ENEMY_COLS], int *enemyCount, int *numRow
     *score = 0;
     player->lives = PLAYER_LIVES;
     player->invincibleTimer = 0.0f;
+    player->bulletsLeft = 25;
     player->position.x = PLAYER_START_X;
 
     // Init active rows from level config
@@ -456,9 +399,6 @@ static void ResetLevel(Enemy enemies[][ENEMY_COLS], int *enemyCount, int *numRow
         enemyBullets[i].active = false;
 }
 
-// (GetRowEnemyType removed — row types are now defined in LevelConfig.rowTypes[])
-
-// Initialise/reset the boss for a fresh fight
 static void ResetBoss(Boss *b)
 {
     b->x = WINDOW_WIDTH / 2.0f - BOSS_WIDTH / 2.0f;
@@ -477,7 +417,7 @@ static void ResetBoss(Boss *b)
     b->ragePhase = 0;
     b->rageTimer = 0.0f;
     b->rageTriggered = false;
-    b->animTimer    = 0.0f;
+    b->animTimer = 0.0f;
     b->currentFrame = 0;
 }
 
@@ -503,7 +443,7 @@ static void SpawnParticles(Particle particles[], float px, float py, int count)
     }
 }
 
-// --- Leaderboard helpers ---
+// Leaderboard
 
 static void LoadLeaderboard(const char *path, LeaderEntry lb[], int *count)
 {
@@ -511,7 +451,6 @@ static void LoadLeaderboard(const char *path, LeaderEntry lb[], int *count)
     FILE *f = fopen(path, "r");
     if (!f)
     {
-        // First run: seed with 5 default 'tamim' entries
         int defScores[MAX_LEADERBOARD] = {500, 400, 300, 200, 100};
         int defLevels[MAX_LEADERBOARD] = {3, 2, 2, 1, 1};
         for (int i = 0; i < MAX_LEADERBOARD; i++)
@@ -570,8 +509,6 @@ static void InsertScore(LeaderEntry lb[], int *count,
     lb[pos].level = level;
     *count = newCount;
 }
-
-// --- Menu helpers (arrow up/down, mouse hover, ENTER/click confirm) ---
 
 static int UpdateMenu(Menu *menu)
 {
@@ -733,6 +670,7 @@ static bool LoadGame(const char *path, int *stateVal, int *level, int *score,
     fscanf(f, "%7s %d", k, score);
     fscanf(f, "%7s %f", k, &player->position.x);
     fscanf(f, "%7s %d", k, &player->lives);
+    player->bulletsLeft = 25;
     fscanf(f, "%7s %f", k, shootCd);
     fscanf(f, "%7s %d", k, numRows);
     fscanf(f, "%7s %d", k, enemyCount);
@@ -887,68 +825,71 @@ int main(void)
     }
 
     // Load all textures
-    Texture2D spaceshipTex = LoadTexture("resources/spaceship.png");
-    Texture2D heartTex     = LoadTexture("resources/heart.png");
-    Texture2D loadingBackground = LoadTexture("resources/loading.png");
-    Texture2D menuBackground    = LoadTexture("resources/menu.png");
+    Texture2D spaceshipTex = LoadTexture("assets/img/spaceship.png");
+    Texture2D heartTex = LoadTexture("assets/img/heart.png");
+    Texture2D loadingBackground = LoadTexture("assets/img/loading.png");
+    Texture2D menuBackground = LoadTexture("assets/img/menu.png");
 
     // Enemy frame arrays — indexed by EnemyType enum value (slot 0 = ENEMY_DEAD, unused)
     // frameCount[t] = number of valid animation frames for type t
-    Texture2D enemyFrames[6][ENEMY_MAX_FRAMES]  = {0};
+    Texture2D enemyFrames[6][ENEMY_MAX_FRAMES] = {0};
     Rectangle enemySrcRect[6][ENEMY_MAX_FRAMES] = {0};
-    int       enemyFrameCount[6]                = {0};
+    int enemyFrameCount[6] = {0};
 
-    enemyFrames[ENEMY_DUMMY][0] = LoadTrimmedSprite("resources/dummy_frame1.png", &enemySrcRect[ENEMY_DUMMY][0]);
-    enemyFrames[ENEMY_DUMMY][1] = LoadTrimmedSprite("resources/dummy_frame2.png", &enemySrcRect[ENEMY_DUMMY][1]);
+    enemyFrames[ENEMY_DUMMY][0] = LoadTrimmedSprite("assets/img/dummy_frame1.png", &enemySrcRect[ENEMY_DUMMY][0]);
+    enemyFrames[ENEMY_DUMMY][1] = LoadTrimmedSprite("assets/img/dummy_frame2.png", &enemySrcRect[ENEMY_DUMMY][1]);
     enemyFrameCount[ENEMY_DUMMY] = 2;
 
-    enemyFrames[ENEMY_BASIC][0] = LoadTrimmedSprite("resources/basic_frame1.png", &enemySrcRect[ENEMY_BASIC][0]);
-    enemyFrames[ENEMY_BASIC][1] = LoadTrimmedSprite("resources/basic_frame2.png", &enemySrcRect[ENEMY_BASIC][1]);
+    enemyFrames[ENEMY_BASIC][0] = LoadTrimmedSprite("assets/img/basic_frame1.png", &enemySrcRect[ENEMY_BASIC][0]);
+    enemyFrames[ENEMY_BASIC][1] = LoadTrimmedSprite("assets/img/basic_frame2.png", &enemySrcRect[ENEMY_BASIC][1]);
     enemyFrameCount[ENEMY_BASIC] = 2;
 
-    enemyFrames[ENEMY_ZIGZAG][0] = LoadTrimmedSprite("resources/zigzag_frame1.png", &enemySrcRect[ENEMY_ZIGZAG][0]);
-    enemyFrames[ENEMY_ZIGZAG][1] = LoadTrimmedSprite("resources/zigzag_frame2.png", &enemySrcRect[ENEMY_ZIGZAG][1]);
+    enemyFrames[ENEMY_ZIGZAG][0] = LoadTrimmedSprite("assets/img/zigzag_frame1.png", &enemySrcRect[ENEMY_ZIGZAG][0]);
+    enemyFrames[ENEMY_ZIGZAG][1] = LoadTrimmedSprite("assets/img/zigzag_frame2.png", &enemySrcRect[ENEMY_ZIGZAG][1]);
     enemyFrameCount[ENEMY_ZIGZAG] = 2;
 
-    enemyFrames[ENEMY_TANK][0] = LoadTrimmedSprite("resources/tank_frame1.png", &enemySrcRect[ENEMY_TANK][0]);
-    enemyFrames[ENEMY_TANK][1] = LoadTrimmedSprite("resources/tank_frame2.png", &enemySrcRect[ENEMY_TANK][1]);
+    enemyFrames[ENEMY_TANK][0] = LoadTrimmedSprite("assets/img/tank_frame1.png", &enemySrcRect[ENEMY_TANK][0]);
+    enemyFrames[ENEMY_TANK][1] = LoadTrimmedSprite("assets/img/tank_frame2.png", &enemySrcRect[ENEMY_TANK][1]);
     enemyFrameCount[ENEMY_TANK] = 2;
 
-    enemyFrames[ENEMY_RAPID][0] = LoadTrimmedSprite("resources/rapid_frame1.png", &enemySrcRect[ENEMY_RAPID][0]);
-    enemyFrames[ENEMY_RAPID][1] = LoadTrimmedSprite("resources/rapid_frame2.png", &enemySrcRect[ENEMY_RAPID][1]);
+    enemyFrames[ENEMY_RAPID][0] = LoadTrimmedSprite("assets/img/rapid_frame1.png", &enemySrcRect[ENEMY_RAPID][0]);
+    enemyFrames[ENEMY_RAPID][1] = LoadTrimmedSprite("assets/img/rapid_frame2.png", &enemySrcRect[ENEMY_RAPID][1]);
     enemyFrameCount[ENEMY_RAPID] = 2;
 
     // Boss animation frame arrays
     Texture2D bossFramesNormal[BOSS_FRAMES_NORMAL];
     Rectangle bossSrcRectNormal[BOSS_FRAMES_NORMAL];
-    bossFramesNormal[0] = LoadTrimmedSprite("resources/boss_frame1.png", &bossSrcRectNormal[0]);
-    bossFramesNormal[1] = LoadTrimmedSprite("resources/boss_frame2.png", &bossSrcRectNormal[1]);
-    bossFramesNormal[2] = LoadTrimmedSprite("resources/boss_frame3.png", &bossSrcRectNormal[2]);
-    bossFramesNormal[3] = LoadTrimmedSprite("resources/boss_frame4.png", &bossSrcRectNormal[3]);
-    bossFramesNormal[4] = LoadTrimmedSprite("resources/boss_frame5.png", &bossSrcRectNormal[4]);
+    bossFramesNormal[0] = LoadTrimmedSprite("assets/img/boss_frame1.png", &bossSrcRectNormal[0]);
+    bossFramesNormal[1] = LoadTrimmedSprite("assets/img/boss_frame2.png", &bossSrcRectNormal[1]);
+    bossFramesNormal[2] = LoadTrimmedSprite("assets/img/boss_frame3.png", &bossSrcRectNormal[2]);
+    bossFramesNormal[3] = LoadTrimmedSprite("assets/img/boss_frame4.png", &bossSrcRectNormal[3]);
+    bossFramesNormal[4] = LoadTrimmedSprite("assets/img/boss_frame5.png", &bossSrcRectNormal[4]);
 
     Texture2D bossFramesRage[BOSS_FRAMES_RAGE];
     Rectangle bossSrcRectRage[BOSS_FRAMES_RAGE];
-    bossFramesRage[0] = LoadTrimmedSprite("resources/boss_rage_frame1.png", &bossSrcRectRage[0]);
-    bossFramesRage[1] = LoadTrimmedSprite("resources/boss_rage_frame2.png", &bossSrcRectRage[1]);
-    bossFramesRage[2] = LoadTrimmedSprite("resources/boss_rage_frame3.png", &bossSrcRectRage[2]);
-    if (FileExists("resources/boss_rage_frame4.png"))
-        bossFramesRage[3] = LoadTrimmedSprite("resources/boss_rage_frame4.png", &bossSrcRectRage[3]);
+    bossFramesRage[0] = LoadTrimmedSprite("assets/img/boss_rage_frame1.png", &bossSrcRectRage[0]);
+    bossFramesRage[1] = LoadTrimmedSprite("assets/img/boss_rage_frame2.png", &bossSrcRectRage[1]);
+    bossFramesRage[2] = LoadTrimmedSprite("assets/img/boss_rage_frame3.png", &bossSrcRectRage[2]);
+    if (FileExists("assets/img/boss_rage_frame4.png"))
+        bossFramesRage[3] = LoadTrimmedSprite("assets/img/boss_rage_frame4.png", &bossSrcRectRage[3]);
     else
-        bossFramesRage[3] = LoadTrimmedSprite("resources/boss-rage_frame4.png", &bossSrcRectRage[3]);
+        bossFramesRage[3] = LoadTrimmedSprite("assets/img/boss-rage_frame4.png", &bossSrcRectRage[3]);
 
+    Texture2D muteIcon = LoadTexture("assets/img/mute.png");
+    Texture2D unmuteIcon = LoadTexture("assets/img/unmute.png");
     // Load sound effects
-    Sound sndShoot     = LoadSound("resources/shoot.wav");      // player fires
-    Sound sndEnemyDie  = LoadSound("resources/enemy_die.wav");  // enemy killed
-    Sound sndBossHit   = LoadSound("resources/boss_hit.wav");   // boss takes damage
-    Sound sndBossRage  = LoadSound("resources/boss_rage.wav");  // rage mode trigger
-    Sound sndEnemyMove = LoadSound("resources/enemy_move.wav"); // enemy march beat
+    Sound sndShoot = LoadSound("assets/music/shoot.wav");          // player fires
+    Sound sndEnemyDie = LoadSound("assets/music/enemy_die.wav");   // enemy killed
+    Sound sndBossHit = LoadSound("assets/music/boss_hit.wav");     // boss takes damage
+    Sound sndBossRage = LoadSound("assets/music/boss_rage.wav");   // rage mode trigger
+    Sound sndEnemyMove = LoadSound("assets/music/enemy_move.wav"); // enemy march beat
+    Sound sndPlayerHit = LoadSound("assets/music/player_hit.mp3"); // player takes damage
     // Enemy march beat timer
-    float enemyMoveTimer   = 0.0f;
-    float enemyMoveBeat    = 0.55f; // seconds between march blips (speeds up below)
+    float enemyMoveTimer = 0.0f;
+    float enemyMoveBeat = 0.55f; // seconds between march blips (speeds up below)
 
     // Deep-space ambient background track (loops seamlessly)
-    Music bgMusic = LoadMusicStream("resources/bg_space.wav");
+    Music bgMusic = LoadMusicStream("assets/music/background.mp3");
     SetMusicVolume(bgMusic, 0.40f); // sits quietly under the SFX
     PlayMusicStream(bgMusic);
 
@@ -960,6 +901,7 @@ int main(void)
         .height = PLAYER_HEIGHT,
         .lives = PLAYER_LIVES,
         .invincibleTimer = 0.0f,
+        .bulletsLeft = 25,
     };
 
     // Player bullets
@@ -1000,6 +942,8 @@ int main(void)
     float loadTimer = 0.0f;
     bool shouldExit = false;
     bool isMuted = false;          // M key toggles mute; starts unmuted
+    bool mouseClampEnabled = true; // X key toggles mouse clamping to window
+    bool muteClicked = false;
     GameState returnState = MAIN_MENU; // where LEADERBOARD goes back to
     GameState pausedFrom = PLAYING;    // PLAYING or BOSS_FIGHT before pause
     float autoSaveTimer = 0.0f;        // periodic auto-save every 10 s during gameplay
@@ -1062,28 +1006,42 @@ int main(void)
         float dt = GetFrameTime();
         if (dt > 0.1f || dt <= 0.0f)
             dt = 0.01667f;
+        muteClicked = false;
 
         // Pump the looping background music every frame (required by raylib)
         UpdateMusicStream(bgMusic);
 
-        // --- Cursor visibility & hardware mouse clamping ---
-        // Clamped & hidden during active gameplay; freed & visible everywhere else.
-        if (state == PLAYING || state == BOSS_FIGHT)
+        // --- Cursor lock & visibility (cross-platform for Windows, macOS, Linux) ---
+        // Locks cursor inside window and hides it during active gameplay.
+        // Unlocks and shows cursor when unstuck (X key), paused, in menus, or unfocused.
+        bool shouldLockMouse = (state == PLAYING || state == BOSS_FIGHT) && mouseClampEnabled && IsWindowFocused();
+        if (shouldLockMouse)
         {
-            HideCursor();
-            UpdateMouseClamping(true);
+            if (!IsCursorHidden())
+                DisableCursor();
         }
         else
         {
-            ShowCursor();
-            UpdateMouseClamping(false);
+            if (IsCursorHidden())
+                EnableCursor();
         }
 
-        // --- M key: toggle mute (works in all states) ---
+        // --- M key or mute-icon click: toggle mute (works in all states) ---
         if (IsKeyPressed(KEY_M))
         {
             isMuted = !isMuted;
             SetMasterVolume(isMuted ? 0.0f : 1.0f);
+        }
+        // Mute icon click area: updated to new size
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+        {
+            Rectangle muteClickArea = {(float)(WINDOW_WIDTH - 128), 6.0f, 68.0f, 45.0f};
+            if (CheckCollisionPointRec(GetMousePosition(), muteClickArea))
+            {
+                isMuted = !isMuted;
+                SetMasterVolume(isMuted ? 0.0f : 1.0f);
+                muteClicked = true;
+            }
         }
 
         // --- Update starfield (always runs) ---
@@ -1187,7 +1145,10 @@ int main(void)
                              &player, &shootCooldown, enemies, &numRows, &enemyCount,
                              &enemyShootTimer, &dropTimer, playerBullets, enemyBullets,
                              &boss, bossBullets))
+                {
+                    mouseClampEnabled = true;
                     state = (GameState)ls;
+                }
             }
             else if (mchoice == 2)
             {
@@ -1225,6 +1186,7 @@ int main(void)
                 ResetLevel(enemies, &enemyCount, &numRows, &levels[0],
                            playerBullets, enemyBullets, &player,
                            &enemyShootTimer, &dropTimer, &score);
+                mouseClampEnabled = true;
                 state = PLAYING;
             }
             else if (lchoice == 1)
@@ -1233,6 +1195,7 @@ int main(void)
                 ResetLevel(enemies, &enemyCount, &numRows, &levels[1],
                            playerBullets, enemyBullets, &player,
                            &enemyShootTimer, &dropTimer, &score);
+                mouseClampEnabled = true;
                 state = PLAYING;
             }
             else if (lchoice == 2)
@@ -1244,6 +1207,7 @@ int main(void)
                 for (int i = 0; i < MAX_BOSS_BULLETS; i++)
                     bossBullets[i].active = false;
                 ResetBoss(&boss);
+                mouseClampEnabled = true;
                 state = BOSS_FIGHT;
             }
             else if (lchoice == 3)
@@ -1320,7 +1284,7 @@ int main(void)
         // --- How to play screen (scrollable) ---
         else if (state == HOW_TO_PLAY)
         {
-            float maxScroll = 320.0f;
+            float maxScroll = 350.0f;
             float wheel = GetMouseWheelMove();
             if (wheel != 0.0f)
                 howToPlayScrollY -= wheel * 45.0f;
@@ -1343,10 +1307,11 @@ int main(void)
             int vpH = WINDOW_HEIGHT - 166;
             float thumbRatio = (float)vpH / (vpH + maxScroll);
             float thumbH = vpH * thumbRatio;
-            if (thumbH < 40.0f) thumbH = 40.0f;
+            if (thumbH < 40.0f)
+                thumbH = 40.0f;
             float thumbY = vpY + (howToPlayScrollY / maxScroll) * (vpH - thumbH);
-            Rectangle thumbRect = { WINDOW_WIDTH - 24, thumbY, 10, thumbH };
-            Rectangle trackRect = { WINDOW_WIDTH - 24, (float)vpY, 10, (float)vpH };
+            Rectangle thumbRect = {WINDOW_WIDTH - 24, thumbY, 10, thumbH};
+            Rectangle trackRect = {WINDOW_WIDTH - 24, (float)vpY, 10, (float)vpH};
 
             Vector2 mouse = GetMousePosition();
             if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
@@ -1380,8 +1345,10 @@ int main(void)
             }
 
             // Clamp bounds
-            if (howToPlayScrollY < 0.0f) howToPlayScrollY = 0.0f;
-            if (howToPlayScrollY > maxScroll) howToPlayScrollY = maxScroll;
+            if (howToPlayScrollY < 0.0f)
+                howToPlayScrollY = 0.0f;
+            if (howToPlayScrollY > maxScroll)
+                howToPlayScrollY = maxScroll;
 
             bool goBack = IsKeyPressed(KEY_BACKSPACE) || IsKeyPressed(KEY_ESCAPE);
             if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) &&
@@ -1421,10 +1388,11 @@ int main(void)
             int vpH = WINDOW_HEIGHT - 170;
             float thumbRatio = (float)vpH / (vpH + maxScroll);
             float thumbH = vpH * thumbRatio;
-            if (thumbH < 40.0f) thumbH = 40.0f;
+            if (thumbH < 40.0f)
+                thumbH = 40.0f;
             float thumbY = vpY + (creditsScrollY / maxScroll) * (vpH - thumbH);
-            Rectangle thumbRect = { WINDOW_WIDTH - 24, thumbY, 10, thumbH };
-            Rectangle trackRect = { WINDOW_WIDTH - 24, (float)vpY, 10, (float)vpH };
+            Rectangle thumbRect = {WINDOW_WIDTH - 24, thumbY, 10, thumbH};
+            Rectangle trackRect = {WINDOW_WIDTH - 24, (float)vpY, 10, (float)vpH};
 
             Vector2 mouse = GetMousePosition();
             if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
@@ -1458,8 +1426,10 @@ int main(void)
             }
 
             // Clamp bounds
-            if (creditsScrollY < 0.0f) creditsScrollY = 0.0f;
-            if (creditsScrollY > maxScroll) creditsScrollY = maxScroll;
+            if (creditsScrollY < 0.0f)
+                creditsScrollY = 0.0f;
+            if (creditsScrollY > maxScroll)
+                creditsScrollY = maxScroll;
 
             bool goBack = IsKeyPressed(KEY_BACKSPACE) || IsKeyPressed(KEY_ESCAPE);
             if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) &&
@@ -1499,9 +1469,11 @@ int main(void)
             }
         }
 
-        // --- ESC or P pauses (auto-saves state to savegame.txt) ---
+        // --- ESC or P or pause-icon click: pauses (auto-saves state to savegame.txt) ---
         else if ((state == PLAYING || state == BOSS_FIGHT) &&
-                 (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_P)))
+                 (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_P) ||
+                  (!muteClicked && IsMouseButtonPressed(MOUSE_BUTTON_LEFT) &&
+                   CheckCollisionPointRec(GetMousePosition(), (Rectangle){(float)(WINDOW_WIDTH - 58), 8.0f, 34.0f, 30.0f}))))
         {
             pausedFrom = state;
             SaveGame("savegame.txt", (int)state, currentLevel, score,
@@ -1527,37 +1499,33 @@ int main(void)
                 autoSaveTimer = 0.0f;
             }
 
-            // --- Clamp OS cursor to window bounds so it can't drift onto the desktop ---
-            {
-                Vector2 mp = GetMousePosition();
-                bool needsClamp = false;
-                if (mp.x < 0)               { mp.x = 0; needsClamp = true; }
-                if (mp.x > WINDOW_WIDTH - 1)  { mp.x = WINDOW_WIDTH - 1;  needsClamp = true; }
-                if (mp.y < 0)               { mp.y = 0; needsClamp = true; }
-                if (mp.y > WINDOW_HEIGHT - 1) { mp.y = WINDOW_HEIGHT - 1; needsClamp = true; }
-                if (needsClamp)
-                    SetMousePosition((int)mp.x, (int)mp.y);
-            }
+            // --- X key: toggle mouse clamp to window ---
+            if (IsKeyPressed(KEY_X))
+                mouseClampEnabled = !mouseClampEnabled;
 
-            // --- Player movement ---
-            // Mouse: snap to cursor only when mouse has actually moved this frame.
-            // Clamped to [0, WINDOW_WIDTH] so edge movement never freezes at borders.
-            // When mouse is stationary, keyboard has full control (no conflict).
+            // --- Apply mouse movement to ship ---
             {
                 static int lastMouseX = -1;
-                int curMouseX = GetMouseX();
-                if (curMouseX < 0) curMouseX = 0;
-                if (curMouseX > WINDOW_WIDTH) curMouseX = WINDOW_WIDTH;
-                if (curMouseX != lastMouseX)
+                if (mouseClampEnabled)
                 {
-                    player.position.x = (float)curMouseX - player.width / 2.0f;
-                    lastMouseX = curMouseX;
+                    Vector2 delta = GetMouseDelta();
+                    if (delta.x != 0.0f)
+                        player.position.x += delta.x;
+                }
+                else
+                {
+                    int curMouseX = GetMouseX();
+                    if (IsCursorOnScreen() && curMouseX != lastMouseX)
+                    {
+                        player.position.x = (float)curMouseX - player.width / 2.0f;
+                        lastMouseX = curMouseX;
+                    }
                 }
             }
-            // Keyboard: left/right always apply on top of (or instead of) mouse
-            if (IsKeyDown(KEY_LEFT))
+            // Keyboard: arrow keys + WASD always apply on top of (or instead of) mouse
+            if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A))
                 player.position.x -= player.speed * dt;
-            if (IsKeyDown(KEY_RIGHT))
+            if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D))
                 player.position.x += player.speed * dt;
 
             // Clamp to screen bounds
@@ -1566,10 +1534,15 @@ int main(void)
             if (player.position.x > PLAYER_MAX_X)
                 player.position.x = PLAYER_MAX_X;
 
+            if (IsKeyPressed(KEY_R) || IsMouseButtonPressed(MOUSE_BUTTON_RIGHT))
+            {
+                player.bulletsLeft = 25;
+            }
+
             // Player shooting with cooldown
             shootCooldown -= dt;
 
-            if ((IsKeyDown(KEY_SPACE) || IsMouseButtonDown(MOUSE_BUTTON_LEFT)) && shootCooldown <= 0.0f)
+            if (!muteClicked && (IsKeyDown(KEY_SPACE) || IsMouseButtonDown(MOUSE_BUTTON_LEFT)) && shootCooldown <= 0.0f && player.bulletsLeft > 0)
             {
                 for (int i = 0; i < MAX_PLAYER_BULLETS; i++)
                 {
@@ -1580,6 +1553,7 @@ int main(void)
                         playerBullets[i].position.y = PLAYER_Y;
                         playerBullets[i].speed = BULLET_SPEED;
                         shootCooldown = PLAYER_SHOOT_COOLDOWN;
+                        player.bulletsLeft--;
                         PlaySound(sndShoot); // ← laser pew
                         break;
                     }
@@ -1828,6 +1802,7 @@ int main(void)
                         player.lives--;
                         player.invincibleTimer = PLAYER_INVINCIBLE_TIME;
                         shakeTimer = SHAKE_DURATION;
+                        PlaySound(sndPlayerHit); // player takes a hit
 
                         SpawnParticles(particles,
                                        player.position.x + player.width / 2.0f,
@@ -1865,7 +1840,7 @@ int main(void)
             if (!boss.rageTriggered && boss.health <= BOSS_RAGE_HP_THRESHOLD)
             {
                 boss.rageTriggered = true;
-                boss.ragePhase = 1; // begin dash toward mid-screen
+                boss.ragePhase = 1;     // begin dash toward mid-screen
                 PlaySound(sndBossRage); // ← dramatic alarm
             }
 
@@ -1876,25 +1851,38 @@ int main(void)
                 float targetY = BOSS_RAGE_TARGET_Y; // = screen centre, never below
                 float spd = 600.0f * dt;
                 float dx = targetX - boss.x, dy = targetY - boss.y;
-                float d  = sqrtf(dx * dx + dy * dy);
+                float d = sqrtf(dx * dx + dy * dy);
                 if (d < spd)
                 {
-                    boss.x = targetX; boss.y = targetY;
-                    boss.ragePhase = 2; boss.rageTimer = 0.0f;
+                    boss.x = targetX;
+                    boss.y = targetY;
+                    boss.ragePhase = 2;
+                    boss.rageTimer = 0.0f;
                 }
-                else { boss.x += (dx / d) * spd; boss.y += (dy / d) * spd; }
+                else
+                {
+                    boss.x += (dx / d) * spd;
+                    boss.y += (dy / d) * spd;
+                }
             }
             else if (boss.ragePhase == 2) // raging at mid-screen
             {
                 float rageSpd = BOSS_SPEED * BOSS_RAGE_SPEED_MUL;
                 boss.x += rageSpd * boss.direction * dt;
                 if (boss.x > WINDOW_WIDTH - BOSS_WIDTH - 20)
-                    { boss.x = WINDOW_WIDTH - BOSS_WIDTH - 20; boss.direction = -1.0f; }
+                {
+                    boss.x = WINDOW_WIDTH - BOSS_WIDTH - 20;
+                    boss.direction = -1.0f;
+                }
                 if (boss.x < 20)
-                    { boss.x = 20; boss.direction = 1.0f; }
+                {
+                    boss.x = 20;
+                    boss.direction = 1.0f;
+                }
                 boss.y = BOSS_RAGE_TARGET_Y; // locked at mid-screen Y
                 boss.rageTimer += dt;
-                if (boss.rageTimer >= BOSS_RAGE_DURATION) boss.ragePhase = 3;
+                if (boss.rageTimer >= BOSS_RAGE_DURATION)
+                    boss.ragePhase = 3;
             }
             else if (boss.ragePhase == 3) // returning to top zone
             {
@@ -1902,28 +1890,39 @@ int main(void)
                 float targetY = BOSS_START_Y;
                 float spd = 400.0f * dt;
                 float dx = targetX - boss.x, dy = targetY - boss.y;
-                float d  = sqrtf(dx * dx + dy * dy);
+                float d = sqrtf(dx * dx + dy * dy);
                 if (d < spd)
                 {
-                    boss.x = targetX; boss.y = targetY;
+                    boss.x = targetX;
+                    boss.y = targetY;
                     boss.yTimer = 0.0f; // restart Y-bounce from top
                     boss.ragePhase = 0;
                 }
-                else { boss.x += (dx / d) * spd; boss.y += (dy / d) * spd; }
+                else
+                {
+                    boss.x += (dx / d) * spd;
+                    boss.y += (dy / d) * spd;
+                }
             }
             else // ragePhase == 0: normal movement
             {
                 boss.x += boss.speed * boss.direction * dt;
                 if (boss.x > WINDOW_WIDTH - BOSS_WIDTH - 20)
-                    { boss.x = WINDOW_WIDTH - BOSS_WIDTH - 20; boss.direction = -1.0f; }
+                {
+                    boss.x = WINDOW_WIDTH - BOSS_WIDTH - 20;
+                    boss.direction = -1.0f;
+                }
                 if (boss.x < 20)
-                    { boss.x = 20; boss.direction = 1.0f; }
+                {
+                    boss.x = 20;
+                    boss.direction = 1.0f;
+                }
 
                 // Triangle-wave Y oscillation, ±30px from BOSS_START_Y
                 boss.yTimer += dt;
                 {
                     float period = 4.0f;
-                    float t    = fmodf(boss.yTimer, period) / period;
+                    float t = fmodf(boss.yTimer, period) / period;
                     float wave = (t < 0.5f) ? (t * 2.0f) : (2.0f - t * 2.0f);
                     boss.y = BOSS_START_Y + (wave - 0.5f) * 60.0f;
                 }
@@ -1955,13 +1954,15 @@ int main(void)
                 if (boss.shootTimer <= 0.0f)
                 {
                     float playerCX = player.position.x + player.width / 2.0f;
-                    float rawDX    = playerCX - bossCX;
+                    float rawDX = playerCX - bossCX;
                     // Clamp horizontal tracking to 1/3 of screen width
                     float maxTrack = WINDOW_WIDTH / 3.0f;
                     float clampedDX = rawDX;
-                    if (clampedDX >  maxTrack) clampedDX =  maxTrack;
-                    if (clampedDX < -maxTrack) clampedDX = -maxTrack;
-                    float pdy  = (float)PLAYER_Y - bossCY;
+                    if (clampedDX > maxTrack)
+                        clampedDX = maxTrack;
+                    if (clampedDX < -maxTrack)
+                        clampedDX = -maxTrack;
+                    float pdy = (float)PLAYER_Y - bossCY;
                     float dist = sqrtf(clampedDX * clampedDX + pdy * pdy);
                     if (dist > 0.0f)
                     {
@@ -1969,10 +1970,10 @@ int main(void)
                         {
                             if (!bossBullets[i].active)
                             {
-                                bossBullets[i].x  = bossCX;
-                                bossBullets[i].y  = bossCY;
+                                bossBullets[i].x = bossCX;
+                                bossBullets[i].y = bossCY;
                                 bossBullets[i].vx = (clampedDX / dist) * BOSS_RAPID_SPEED;
-                                bossBullets[i].vy = (pdy       / dist) * BOSS_RAPID_SPEED;
+                                bossBullets[i].vy = (pdy / dist) * BOSS_RAPID_SPEED;
                                 bossBullets[i].active = true;
                                 break;
                             }
@@ -2063,8 +2064,7 @@ int main(void)
                 boss.x + BOSS_HIT_X_MARGIN,
                 boss.y + BOSS_HIT_Y_OFFSET,
                 BOSS_HIT_WIDTH,
-                BOSS_HIT_HEIGHT
-            };
+                BOSS_HIT_HEIGHT};
             for (int i = 0; i < MAX_PLAYER_BULLETS; i++)
             {
                 if (!playerBullets[i].active)
@@ -2106,6 +2106,7 @@ int main(void)
                     player.lives--;
                     player.invincibleTimer = PLAYER_INVINCIBLE_TIME;
                     shakeTimer = SHAKE_DURATION;
+                    PlaySound(sndPlayerHit); // player takes a hit
 
                     SpawnParticles(particles,
                                    player.position.x + player.width / 2.0f,
@@ -2190,7 +2191,7 @@ int main(void)
                 DrawCircleV((Vector2){drawX, drawY}, stars[i].size, sc);
         }
 
-                // --- Draw particles ---
+        // --- Draw particles ---
         for (int i = 0; i < MAX_PARTICLES; i++)
         {
             if (!particles[i].active)
@@ -2215,6 +2216,73 @@ int main(void)
             }
 
             DrawText(TextFormat("ENEMIES: %d", enemyCount), 20, 80, 25, RED);
+
+            // Bullets left indicator (bottom-right circle)
+            float circleRadius = 26.0f;
+            float circleX = WINDOW_WIDTH - 46.0f;
+            float circleY = WINDOW_HEIGHT - 40.0f;
+
+            // Fill fades from full white (when 25 bullets) to transparent (when 0)
+            float bulletRatio = (float)player.bulletsLeft / 25.0f;
+            if (bulletRatio < 0.0f) bulletRatio = 0.0f;
+            if (bulletRatio > 1.0f) bulletRatio = 1.0f;
+            unsigned char fillAlpha = (unsigned char)(bulletRatio * 255.0f);
+
+            if (fillAlpha > 0)
+            {
+                DrawCircle((int)circleX, (int)circleY, circleRadius - 1.5f, (Color){255, 255, 255, fillAlpha});
+            }
+
+            // White border
+            DrawRing((Vector2){circleX, circleY}, circleRadius - 2.5f, circleRadius, 0.0f, 360.0f, 48, WHITE);
+
+            // Number at center
+            const char *numStr = TextFormat("%d", player.bulletsLeft);
+            int numFontSize = 22;
+            int numW = MeasureText(numStr, numFontSize);
+            int numX = (int)(circleX - numW / 2.0f);
+            int numY = (int)(circleY - numFontSize / 2.0f);
+
+            Color numColor;
+            if (player.bulletsLeft == 0)
+            {
+                numColor = RED;
+            }
+            else if (bulletRatio > 0.45f)
+            {
+                numColor = (Color){15, 15, 25, 255}; // dark contrast on white fill
+            }
+            else
+            {
+                numColor = WHITE; // light contrast on transparent/dark fill
+            }
+
+            if (bulletRatio <= 0.45f && player.bulletsLeft > 0)
+            {
+                DrawText(numStr, numX + 1, numY + 1, numFontSize, (Color){0, 0, 0, 200});
+            }
+            DrawText(numStr, numX, numY, numFontSize, numColor);
+
+            if (player.bulletsLeft == 0)
+            {
+                const char *reloadText = "Press 'R' or Right-Click to reload";
+                int rw = MeasureText(reloadText, 20);
+                int rx = WINDOW_WIDTH / 2 - rw / 2;
+                int ry = WINDOW_HEIGHT / 2 - 10;
+                DrawText(reloadText, rx + 1, ry + 1, 20, (Color){0, 0, 0, 180});
+                DrawText(reloadText, rx, ry, 20, RED);
+            }
+
+            // Mouse unstuck notification banner
+            if (!mouseClampEnabled)
+            {
+                int unstuckY = (state == BOSS_FIGHT) ? 35 : 18;
+                const char *unstuckText = "MOUSE UNSTUCK [Press X to lock]";
+                int uw = MeasureText(unstuckText, 16);
+                int ux = WINDOW_WIDTH / 2 - uw / 2;
+                DrawText(unstuckText, ux + 1, unstuckY + 1, 16, (Color){0, 0, 0, 180});
+                DrawText(unstuckText, ux, unstuckY, 16, YELLOW);
+            }
         }
 
         // --- High score display (top-right, left of the mute & pause icons) ---
@@ -2235,11 +2303,11 @@ int main(void)
         if (state == PLAYING || state == BOSS_FIGHT)
         {
             // Icon geometry
-            int iconX  = WINDOW_WIDTH - 52; // left edge of icon area
-            int iconY  = 12;
-            int barW   = 8;                  // width of each bar
-            int barH   = 22;                 // height of each bar
-            int barGap = 6;                  // gap between the two bars
+            int iconX = WINDOW_WIDTH - 52; // left edge of icon area
+            int iconY = 12;
+            int barW = 8;   // width of each bar
+            int barH = 22;  // height of each bar
+            int barGap = 6; // gap between the two bars
             // Semi-transparent pill background
             DrawRectangleRounded((Rectangle){iconX - 6, iconY - 4,
                                              barW * 2 + barGap + 12, barH + 8},
@@ -2260,50 +2328,6 @@ int main(void)
                 DrawText("[P]", iconX - 2, iconY + barH + 6, 14, DARKGRAY);
         }
 
-        // --- Mute icon: drawn every frame in every state (top-right, left of pause icon) ---
-        {
-            int muteX = WINDOW_WIDTH - 106; // left edge; sits left of the pause icon at -52
-            int muteY = 12;
-            int icoW  = 30;  // bounding box width
-            int icoH  = 22;  // bounding box height
-            // Semi-transparent pill background
-            DrawRectangleRounded((Rectangle){(float)(muteX - 5), (float)(muteY - 4),
-                                             (float)(icoW + 10), (float)(icoH + 8)},
-                                 0.5f, 8, (Color){0, 0, 0, 130});
-
-            Color speakerCol = isMuted ? (Color){220, 60, 60, 220} : (Color){200, 200, 200, 210};
-
-            // Speaker body: small filled rect (left side of speaker)
-            DrawRectangle(muteX, muteY + 7, 6, 8, speakerCol);
-            // Speaker cone: triangle pointing right
-            DrawTriangle(
-                (Vector2){(float)(muteX + 6),  (float)(muteY + 4)},
-                (Vector2){(float)(muteX + 6),  (float)(muteY + 18)},
-                (Vector2){(float)(muteX + 14), (float)(muteY + 11)},
-                speakerCol);
-
-            if (!isMuted)
-            {
-                // Sound waves: two partial circle outlines
-                DrawCircleLines(muteX + 6, muteY + 11, 7,  (Color){200, 200, 200, 170});
-                DrawCircleLines(muteX + 6, muteY + 11, 11, (Color){200, 200, 200, 110});
-            }
-            else
-            {
-                // Muted: diagonal strike-through across the icon
-                DrawLineEx((Vector2){(float)(muteX + 16), (float)(muteY + 3)},
-                           (Vector2){(float)(muteX + 2),  (float)(muteY + 19)},
-                           2.5f, (Color){255, 60, 60, 230});
-            }
-
-            // [M] key hint on hover
-            Vector2 mMouse = GetMousePosition();
-            Rectangle muteArea = {(float)(muteX - 5), (float)(muteY - 4),
-                                   (float)(icoW + 10), (float)(icoH + 8)};
-            if (CheckCollisionPointRec(mMouse, muteArea))
-                DrawText("[M]", muteX - 2, muteY + icoH + 6, 14, DARKGRAY);
-        }
-
         // Draw all living enemies
         for (int i = 0; i < numRows; i++)
         {
@@ -2313,19 +2337,19 @@ int main(void)
                     continue;
 
                 EnemyType etype = enemies[i][j].type;
-                int frame       = enemies[i][j].currentFrame;
-                bool flashing   = (enemies[i][j].hitFlashFrames > 0);
-                Vector2 pos     = {(float)(enemies[i][j].x + sx), (float)(enemies[i][j].y + sy)};
+                int frame = enemies[i][j].currentFrame;
+                bool flashing = (enemies[i][j].hitFlashFrames > 0);
+                Vector2 pos = {(float)(enemies[i][j].x + sx), (float)(enemies[i][j].y + sy)};
 
                 // Per-type draw properties: target visual width, tint
                 float targetW = 44.0f;
-                Color tint    = flashing ? RED : WHITE;
+                Color tint = flashing ? RED : WHITE;
 
                 switch (etype)
                 {
                 case ENEMY_BASIC:
                     targetW = 44.0f;
-                    tint    = flashing ? RED : SKYBLUE;
+                    tint = flashing ? RED : SKYBLUE;
                     break;
                 case ENEMY_ZIGZAG:
                     // Frame 1 has spread wings (wide aspect ratio); use wider targetW so body size matches Frame 0
@@ -2337,17 +2361,18 @@ int main(void)
                 case ENEMY_RAPID:
                     // Frame 1 has raised arms and outward antennae; use wider targetW so central body matches Frame 0
                     targetW = (frame == 1) ? 46.0f : 36.0f;
-                    tint    = flashing ? RED : YELLOW;
+                    tint = flashing ? RED : YELLOW;
                     break;
-                default: break;
+                default:
+                    break;
                 }
 
                 Rectangle src = enemySrcRect[etype][frame];
-                float aspect  = (src.width > 0) ? (src.height / src.width) : 1.0f;
-                float dstW    = targetW;
-                float dstH    = targetW * aspect;
-                float dstX    = pos.x + (ENEMY_HITBOX - dstW) * 0.5f;
-                float dstY    = pos.y + (ENEMY_HITBOX - dstH) * 0.5f;
+                float aspect = (src.width > 0) ? (src.height / src.width) : 1.0f;
+                float dstW = targetW;
+                float dstH = targetW * aspect;
+                float dstX = pos.x + (ENEMY_HITBOX - dstW) * 0.5f;
+                float dstY = pos.y + (ENEMY_HITBOX - dstH) * 0.5f;
                 Rectangle dst = {dstX, dstY, dstW, dstH};
 
                 DrawTexturePro(enemyFrames[etype][frame], src, dst, (Vector2){0, 0}, 0.0f, tint);
@@ -2397,9 +2422,9 @@ int main(void)
         if (state == LOADING)
         {
             DrawTexturePro(loadingBackground,
-                (Rectangle){0, 0, (float)loadingBackground.width, (float)loadingBackground.height},
-                (Rectangle){0, 0, WINDOW_WIDTH, WINDOW_HEIGHT},
-                (Vector2){0, 0}, 0, WHITE);
+                           (Rectangle){0, 0, (float)loadingBackground.width, (float)loadingBackground.height},
+                           (Rectangle){0, 0, WINDOW_WIDTH, WINDOW_HEIGHT},
+                           (Vector2){0, 0}, 0, WHITE);
 
             // Light veil only at the very bottom, so the art stays fully visible
             DrawRectangleGradientV(0, WINDOW_HEIGHT - 220, WINDOW_WIDTH, 220,
@@ -2410,7 +2435,8 @@ int main(void)
             int barX = WINDOW_WIDTH / 2 - barW / 2;
             int barY = WINDOW_HEIGHT - 110;
             float prog = loadTimer / LOAD_DURATION;
-            if (prog > 1.0f) prog = 1.0f;
+            if (prog > 1.0f)
+                prog = 1.0f;
             DrawRectangleRounded((Rectangle){barX, barY, barW, barH}, 0.6f, 8, (Color){255, 255, 255, 30});
             DrawRectangleRounded((Rectangle){barX, barY, barW * prog, barH}, 0.6f, 8, (Color){255, 205, 110, 230});
             DrawRectangleLines(barX, barY, barW, barH, (Color){255, 255, 255, 70});
@@ -2423,9 +2449,9 @@ int main(void)
         if (state == MAIN_MENU)
         {
             DrawTexturePro(menuBackground,
-                (Rectangle){0, 0, (float)menuBackground.width, (float)menuBackground.height},
-                (Rectangle){0, 0, WINDOW_WIDTH, WINDOW_HEIGHT},
-                (Vector2){0, 0}, 0, WHITE);
+                           (Rectangle){0, 0, (float)menuBackground.width, (float)menuBackground.height},
+                           (Rectangle){0, 0, WINDOW_WIDTH, WINDOW_HEIGHT},
+                           (Vector2){0, 0}, 0, WHITE);
 
             // Soft navy veil, gently darker at top/bottom, lighter in the middle
             DrawRectangleGradientV(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT / 2,
@@ -2457,7 +2483,7 @@ int main(void)
                 }
 
                 Color c = !mainMenu.enabled[i] ? (Color){120, 120, 130, 255}
-                          : (showHighlight ? (Color){255, 225, 150, 255} : (Color){225, 230, 240, 255});
+                                               : (showHighlight ? (Color){255, 225, 150, 255} : (Color){225, 230, 240, 255});
 
                 int tw = MeasureText(mainMenu.items[i], 28);
                 DrawText(mainMenu.items[i], WINDOW_WIDTH / 2 - tw / 2, y, 28, c);
@@ -2476,9 +2502,9 @@ int main(void)
         if (state == LEADERBOARD)
         {
             DrawTexturePro(menuBackground,
-                (Rectangle){0, 0, (float)menuBackground.width, (float)menuBackground.height},
-                (Rectangle){0, 0, WINDOW_WIDTH, WINDOW_HEIGHT},
-                (Vector2){0, 0}, 0, WHITE);
+                           (Rectangle){0, 0, (float)menuBackground.width, (float)menuBackground.height},
+                           (Rectangle){0, 0, WINDOW_WIDTH, WINDOW_HEIGHT},
+                           (Vector2){0, 0}, 0, WHITE);
             DrawRectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, (Color){0, 0, 0, 215});
 
             // Back arrow, top-left — gold accent, brightens on hover
@@ -2490,8 +2516,8 @@ int main(void)
             DrawText("LEADERBOARD", WINDOW_WIDTH / 2 - lbW / 2, 155, 44, GOLD);
 
             // Column X positions (fixed, so alignment never depends on font/name length)
-            int colRankX  = WINDOW_WIDTH / 2 - 200;
-            int colNameX  = WINDOW_WIDTH / 2 - 140;
+            int colRankX = WINDOW_WIDTH / 2 - 200;
+            int colNameX = WINDOW_WIDTH / 2 - 140;
             int colScoreX = WINDOW_WIDTH / 2 + 90;
             int colLevelX = WINDOW_WIDTH / 2 + 175;
 
@@ -2546,9 +2572,9 @@ int main(void)
         if (state == HOW_TO_PLAY)
         {
             DrawTexturePro(menuBackground,
-                (Rectangle){0, 0, (float)menuBackground.width, (float)menuBackground.height},
-                (Rectangle){0, 0, WINDOW_WIDTH, WINDOW_HEIGHT},
-                (Vector2){0, 0}, 0, WHITE);
+                           (Rectangle){0, 0, (float)menuBackground.width, (float)menuBackground.height},
+                           (Rectangle){0, 0, WINDOW_WIDTH, WINDOW_HEIGHT},
+                           (Vector2){0, 0}, 0, WHITE);
             DrawRectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, (Color){0, 0, 0, 220});
 
             // Back arrow, top-left — gold accent, brightens on hover
@@ -2573,40 +2599,70 @@ int main(void)
             Color bodyC = LIGHTGRAY;
 
             // CONTROLS section
-            DrawText("CONTROLS", 80, lineY, 26, headC); lineY += lineGap + 4;
-            DrawText("- Move Left / Right : LEFT & RIGHT arrow keys, or move the mouse", 100, lineY, 20, bodyC); lineY += lineGap;
-            DrawText("- Shoot             : SPACE bar or LEFT mouse click", 100, lineY, 20, bodyC); lineY += lineGap;
-            DrawText("- Pause             : P (while playing)", 100, lineY, 20, bodyC); lineY += lineGap;
-            DrawText("- Mute Audio        : M (anytime)", 100, lineY, 20, bodyC); lineY += lineGap;
-            DrawText("- Menu Navigation   : UP / DOWN arrow keys, or hover with the mouse", 100, lineY, 20, bodyC); lineY += lineGap;
-            DrawText("- Confirm Selection : ENTER, or click the highlighted item", 100, lineY, 20, bodyC); lineY += lineGap;
-            DrawText("- Back (in menus)   : BACKSPACE, or click the < arrow", 100, lineY, 20, bodyC); lineY += lineGap;
-            DrawText("- Scroll in Menus   : Mouse Wheel, UP / DOWN arrows, Page Up / Down", 100, lineY, 20, bodyC); lineY += lineGap + 16;
+            DrawText("CONTROLS", 80, lineY, 26, headC);
+            lineY += lineGap + 4;
+            DrawText("- Move Left / Right : Arrow keys (LEFT/RIGHT) or A/D, or move the mouse", 100, lineY, 20, bodyC);
+            lineY += lineGap;
+            DrawText("- Shoot             : SPACE bar or LEFT mouse click", 100, lineY, 20, bodyC);
+            lineY += lineGap;
+            DrawText("- Reload            : R key or RIGHT mouse click", 100, lineY, 20, bodyC);
+            lineY += lineGap;
+            DrawText("- Pause             : P or ESC (while playing)", 100, lineY, 20, bodyC);
+            lineY += lineGap;
+            DrawText("- Mute Audio        : M (anytime) or click the speaker icon (top-right)", 100, lineY, 20, bodyC);
+            lineY += lineGap;
+            DrawText("- Mouse Clamp       : X toggles locking the mouse cursor to the window", 100, lineY, 20, bodyC);
+            lineY += lineGap;
+            DrawText("- Menu Navigation   : UP / DOWN arrow keys, or hover with the mouse", 100, lineY, 20, bodyC);
+            lineY += lineGap;
+            DrawText("- Confirm Selection : ENTER, or click the highlighted item", 100, lineY, 20, bodyC);
+            lineY += lineGap;
+            DrawText("- Back (in menus)   : BACKSPACE, or click the < arrow", 100, lineY, 20, bodyC);
+            lineY += lineGap;
+            DrawText("- Scroll in Menus   : Mouse Wheel, UP / DOWN arrows, Page Up / Down", 100, lineY, 20, bodyC);
+            lineY += lineGap + 16;
 
             // OBJECTIVE section
-            DrawText("OBJECTIVE", 80, lineY, 26, headC); lineY += lineGap + 4;
-            DrawText("- Destroy all enemies in the formation to clear a level", 100, lineY, 20, bodyC); lineY += lineGap;
-            DrawText("- Avoid enemy bullets - you have 3 lives", 100, lineY, 20, bodyC); lineY += lineGap;
-            DrawText("- Level 3 is a Boss Fight - survive its attacks and destroy it", 100, lineY, 20, bodyC); lineY += lineGap + 16;
+            DrawText("OBJECTIVE", 80, lineY, 26, headC);
+            lineY += lineGap + 4;
+            DrawText("- Destroy all enemies in the formation to clear a level", 100, lineY, 20, bodyC);
+            lineY += lineGap;
+            DrawText("- Avoid enemy bullets - you have 3 lives", 100, lineY, 20, bodyC);
+            lineY += lineGap;
+            DrawText("- Level 3 is a Boss Fight - survive its attacks and destroy it", 100, lineY, 20, bodyC);
+            lineY += lineGap + 16;
 
             // ENEMY TYPES section
-            DrawText("ENEMY TYPES", 80, lineY, 26, headC); lineY += lineGap + 4;
-            DrawText("- Basic / Dummy : weak, low score", 100, lineY, 20, bodyC); lineY += lineGap;
-            DrawText("- Zigzag        : moves in a wave pattern", 100, lineY, 20, bodyC); lineY += lineGap;
-            DrawText("- Rapid         : fires quickly", 100, lineY, 20, bodyC); lineY += lineGap;
-            DrawText("- Tank          : takes multiple hits, high score", 100, lineY, 20, bodyC); lineY += lineGap + 16;
+            DrawText("ENEMY TYPES", 80, lineY, 26, headC);
+            lineY += lineGap + 4;
+            DrawText("- Basic / Dummy : weak, low score", 100, lineY, 20, bodyC);
+            lineY += lineGap;
+            DrawText("- Zigzag        : moves in a wave pattern", 100, lineY, 20, bodyC);
+            lineY += lineGap;
+            DrawText("- Rapid         : fires quickly", 100, lineY, 20, bodyC);
+            lineY += lineGap;
+            DrawText("- Tank          : takes multiple hits, high score", 100, lineY, 20, bodyC);
+            lineY += lineGap + 16;
 
             // SCORING section
-            DrawText("SCORING", 80, lineY, 26, headC); lineY += lineGap + 4;
-            DrawText("- Beat the top 5 leaderboard scores to enter your name", 100, lineY, 20, bodyC); lineY += lineGap;
-            DrawText("- The HI score (top-right) updates live as you beat it", 100, lineY, 20, bodyC); lineY += lineGap;
-            DrawText("- Hitting the boss awards +10 pts, defeating the boss gives +200 bonus pts", 100, lineY, 20, bodyC); lineY += lineGap + 16;
+            DrawText("SCORING", 80, lineY, 26, headC);
+            lineY += lineGap + 4;
+            DrawText("- Beat the top 5 leaderboard scores to enter your name", 100, lineY, 20, bodyC);
+            lineY += lineGap;
+            DrawText("- The HI score (top-right) updates live as you beat it", 100, lineY, 20, bodyC);
+            lineY += lineGap;
+            DrawText("- Hitting the boss awards +10 pts, defeating the boss gives +200 bonus pts", 100, lineY, 20, bodyC);
+            lineY += lineGap + 16;
 
             // STRATEGY & TIPS section
-            DrawText("STRATEGY & TIPS", 80, lineY, 26, headC); lineY += lineGap + 4;
-            DrawText("- Keep moving continuously to dodge incoming bullets", 100, lineY, 20, bodyC); lineY += lineGap;
-            DrawText("- Eliminate rapid & zigzag enemies early to reduce the bullet storm", 100, lineY, 20, bodyC); lineY += lineGap;
-            DrawText("- When Boss enters rage mode (<25% HP), its movement and firing speed double!", 100, lineY, 20, bodyC); lineY += lineGap + 20;
+            DrawText("STRATEGY & TIPS", 80, lineY, 26, headC);
+            lineY += lineGap + 4;
+            DrawText("- Keep moving continuously to dodge incoming bullets", 100, lineY, 20, bodyC);
+            lineY += lineGap;
+            DrawText("- Eliminate rapid & zigzag enemies early to reduce the bullet storm", 100, lineY, 20, bodyC);
+            lineY += lineGap;
+            DrawText("- When Boss enters rage mode (<25% HP), its movement and firing speed double!", 100, lineY, 20, bodyC);
+            lineY += lineGap + 20;
 
             EndScissorMode();
 
@@ -2618,12 +2674,13 @@ int main(void)
             float maxScroll = 320.0f;
             float thumbRatio = (float)vpH / (vpH + maxScroll);
             float thumbH = vpH * thumbRatio;
-            if (thumbH < 40.0f) thumbH = 40.0f;
+            if (thumbH < 40.0f)
+                thumbH = 40.0f;
             float thumbY = vpY + (howToPlayScrollY / maxScroll) * (vpH - thumbH);
 
             DrawRectangleRounded((Rectangle){WINDOW_WIDTH - 24, (float)vpY, 8, (float)vpH}, 0.5f, 4, (Color){255, 255, 255, 25});
             DrawRectangleRounded((Rectangle){WINDOW_WIDTH - 24, thumbY, 8, thumbH}, 0.5f, 4,
-                scrollbarDragging ? (Color){255, 230, 160, 240} : (Color){255, 205, 110, 190});
+                                 scrollbarDragging ? (Color){255, 230, 160, 240} : (Color){255, 205, 110, 190});
 
             // Bottom bar with footer text and scroll hint
             DrawRectangle(0, WINDOW_HEIGHT - 55, WINDOW_WIDTH, 55, (Color){8, 10, 22, 230});
@@ -2639,9 +2696,9 @@ int main(void)
         if (state == CREDITS)
         {
             DrawTexturePro(menuBackground,
-                (Rectangle){0, 0, (float)menuBackground.width, (float)menuBackground.height},
-                (Rectangle){0, 0, WINDOW_WIDTH, WINDOW_HEIGHT},
-                (Vector2){0, 0}, 0, WHITE);
+                           (Rectangle){0, 0, (float)menuBackground.width, (float)menuBackground.height},
+                           (Rectangle){0, 0, WINDOW_WIDTH, WINDOW_HEIGHT},
+                           (Vector2){0, 0}, 0, WHITE);
             DrawRectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, (Color){0, 0, 0, 220});
 
             // Back arrow, top-left — gold accent, brightens on hover
@@ -2763,12 +2820,13 @@ int main(void)
             float maxScroll = 340.0f;
             float thumbRatio = (float)vpH / (vpH + maxScroll);
             float thumbH = vpH * thumbRatio;
-            if (thumbH < 40.0f) thumbH = 40.0f;
+            if (thumbH < 40.0f)
+                thumbH = 40.0f;
             float thumbY = vpY + (creditsScrollY / maxScroll) * (vpH - thumbH);
 
             DrawRectangleRounded((Rectangle){WINDOW_WIDTH - 24, (float)vpY, 8, (float)vpH}, 0.5f, 4, (Color){255, 255, 255, 25});
             DrawRectangleRounded((Rectangle){WINDOW_WIDTH - 24, thumbY, 8, thumbH}, 0.5f, 4,
-                scrollbarDragging ? (Color){255, 230, 160, 240} : (Color){255, 205, 110, 190});
+                                 scrollbarDragging ? (Color){255, 230, 160, 240} : (Color){255, 205, 110, 190});
 
             // Bottom bar with footer text and scroll hint
             DrawRectangle(0, WINDOW_HEIGHT - 55, WINDOW_WIDTH, 55, (Color){8, 10, 22, 230});
@@ -2840,30 +2898,30 @@ int main(void)
         {
             // Select the active frame set: rage frames during ragePhase 1/2/3, normal otherwise
             Texture2D *activeBossFrames = (boss.ragePhase != 0) ? bossFramesRage : bossFramesNormal;
-            Rectangle *activeBossSrcs   = (boss.ragePhase != 0) ? bossSrcRectRage : bossSrcRectNormal;
+            Rectangle *activeBossSrcs = (boss.ragePhase != 0) ? bossSrcRectRage : bossSrcRectNormal;
             int bossFrame = boss.currentFrame;
             // Clamp frame index defensively (rage/normal sets have different counts)
             int maxFrame = (boss.ragePhase != 0) ? BOSS_FRAMES_RAGE : BOSS_FRAMES_NORMAL;
-            if (bossFrame >= maxFrame) bossFrame = 0;
+            if (bossFrame >= maxFrame)
+                bossFrame = 0;
 
             Rectangle src = activeBossSrcs[bossFrame];
-            float aspect  = (src.width > 0) ? (src.height / src.width) : 1.0f;
-            float dstW    = 280.0f;
-            float dstH    = dstW * aspect;
+            float aspect = (src.width > 0) ? (src.height / src.width) : 1.0f;
+            float dstW = 280.0f;
+            float dstH = dstW * aspect;
             // Anchor top baseline at boss.y + 12px, centered horizontally
             Rectangle dst = {
                 boss.x + sx + (BOSS_WIDTH - dstW) * 0.5f,
                 boss.y + sy + 12.0f,
                 dstW,
-                dstH
-            };
+                dstH};
 
             // Apply RED tint on hit-flash frames, otherwise draw normally
             Color bossTint = (boss.hitFlashFrames > 0) ? RED : WHITE;
             DrawTexturePro(activeBossFrames[bossFrame], src, dst, (Vector2){0, 0}, 0.0f, bossTint);
 
             // Boss health bar — centered 620px
-            float barW = 620.0f;
+            float barW = 550.0f;
             float barX = WINDOW_WIDTH / 2.0f - barW / 2.0f;
             float hpRatio = (float)boss.health / (float)boss.maxHealth;
             DrawRectangle((int)barX, 12, (int)barW, 12, DARKGRAY);
@@ -2881,6 +2939,33 @@ int main(void)
                 if (bossBullets[i].active)
                     DrawCircle((int)(bossBullets[i].x + sx), (int)(bossBullets[i].y + sy), 5, ORANGE);
             }
+        }
+
+        // --- Mute icon: drawn every frame in every state (top-right, left of pause icon) ---
+        {
+            int muteX = WINDOW_WIDTH - 120; // Moved further left for larger size
+            int muteY = 12;
+            int icoW = 45; // bounding box width
+            int icoH = 33; // bounding box height
+            Rectangle pillRect = {(float)(muteX - 8), (float)(muteY - 6),
+                                  (float)(icoW + 15), (float)(icoH + 12)};
+            // Semi-transparent pill background
+            DrawRectangleRounded(pillRect, 0.5f, 8, (Color){0, 0, 0, 130});
+
+            Texture2D tex = isMuted ? muteIcon : unmuteIcon;
+            float iconDrawW = 32.0f;
+            float iconDrawH = 32.0f;
+            float drawX = pillRect.x + (pillRect.width - iconDrawW) / 2.0f;
+            float drawY = pillRect.y + (pillRect.height - iconDrawH) / 2.0f;
+            DrawTexturePro(tex,
+                           (Rectangle){0, 0, (float)tex.width, (float)tex.height},
+                           (Rectangle){drawX, drawY, iconDrawW, iconDrawH},
+                           (Vector2){0, 0}, 0.0f, WHITE);
+
+            // [M] key hint on hover
+            Vector2 mMouse = GetMousePosition();
+            if (CheckCollisionPointRec(mMouse, pillRect))
+                DrawText("[M]", muteX, muteY + icoH + 9, 18, DARKGRAY);
         }
 
         EndDrawing();
@@ -2904,11 +2989,14 @@ int main(void)
     UnloadSound(sndBossHit);
     UnloadSound(sndBossRage);
     UnloadSound(sndEnemyMove);
+    UnloadSound(sndPlayerHit);
     CloseAudioDevice();
     UnloadTexture(spaceshipTex);
     UnloadTexture(heartTex);
     UnloadTexture(loadingBackground);
     UnloadTexture(menuBackground);
+    UnloadTexture(muteIcon);
+    UnloadTexture(unmuteIcon);
     // Unload enemy frame textures
     for (int t = 1; t < 6; t++)
         for (int f = 0; f < enemyFrameCount[t]; f++)
@@ -2918,7 +3006,7 @@ int main(void)
     for (int f = 0; f < BOSS_FRAMES_RAGE; f++)
         UnloadTexture(bossFramesRage[f]);
 
-    UpdateMouseClamping(false);
+    EnableCursor();
     CloseWindow();
     return 0;
 }
